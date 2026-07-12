@@ -1,0 +1,79 @@
+name: rotter_scoops
+description: "Rotter Scoops — a modern client for rotter.net scoops."
+publish_to: 'none'
+
+version: 1.0.12+12
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  # native iOS chrome (Liquid Glass tab bar)
+  cupertino_native: ^0.1.1
+  # reading rotter: RSS + thread HTML (windows-1255 decoded in services/win1255.dart)
+  http: ^1.2.2
+  html: ^0.15.4
+  xml: ^6.5.0
+  # gated writes (login / posting) via a real browser
+  flutter_inappwebview: ^6.1.5
+  # local persistence: theme, accent, locale, session
+  shared_preferences: ^2.3.2
+  # modern UI: motion (typeface is bundled — see fonts: below)
+  flutter_animate: ^4.5.0
+  # i18n date/number formatting
+  intl: any
+  url_launcher: ^6.3.0
+  flutter_widget_from_html: ^0.17.2
+  # index-addressable scrolling for "jump to next top-level comment"
+  scrollable_positioned_list: ^0.3.8
+  # Keychain/Keystore storage for the saved rotter username + password
+  flutter_secure_storage: ^9.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.1
+
+# App icons — amber "scoop" mark, light/dark/tinted (iOS 18) + adaptive (Android).
+# (run: ~/Downloads/flutter/bin/dart run flutter_launcher_icons)
+flutter_launcher_icons:
+  image_path: "assets/icon/appicon_light.png"
+  image_path_ios: "assets/icon/appicon_light.png"
+  image_path_ios_dark_transparent: "assets/icon/appicon_dark.png"
+  image_path_ios_tinted_grayscale: "assets/icon/appicon_tinted.png"
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  background_color_ios: "#1A1206"
+  adaptive_icon_background: "#1A1206"
+  adaptive_icon_foreground: "assets/icon/adaptive_fg.png"
+  adaptive_icon_monochrome: "assets/icon/adaptive_mono.png"
+  min_sdk_android: 21
+
+flutter:
+  uses-material-design: true
+  generate: true
+
+  assets:
+    - assets/icon/appicon_light.png
+
+  fonts:
+    - family: NotoSansHebrew
+      fonts:
+        - asset: assets/fonts/NotoSansHebrew-400.ttf
+          weight: 400
+        - asset: assets/fonts/NotoSansHebrew-500.ttf
+          weight: 500
+        - asset: assets/fonts/NotoSansHebrew-600.ttf
+          weight: 600
+        - asset: assets/fonts/NotoSansHebrew-700.ttf
+          weight: 700
+        - asset: assets/fonts/NotoSansHebrew-800.ttf
+          weight: 800

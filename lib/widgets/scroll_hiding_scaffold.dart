@@ -31,9 +31,18 @@ class ScrollHidingScaffold extends StatefulWidget {
 }
 
 class _ScrollHidingScaffoldState extends State<ScrollHidingScaffold> {
-  bool _visible = true;
+  // A ValueNotifier — NOT setState. setState here would rebuild the whole body
+  // (every visible comment's HtmlWidget re-parses its HTML) on each toggle, which
+  // makes scrolling stutter. Only the bar listens.
+  final _visible = ValueNotifier<bool>(true);
   double _lastPixels = 0;
   double _accum = 0; // accumulated drag since the last toggle
+
+  @override
+  void dispose() {
+    _visible.dispose();
+    super.dispose();
+  }
 
   bool _onScroll(ScrollNotification n) {
     if (n.metrics.axis != Axis.vertical) return false;
@@ -41,7 +50,7 @@ class _ScrollHidingScaffoldState extends State<ScrollHidingScaffold> {
 
     // Always reveal near the very top, so the bar can never get stuck hidden.
     if (px <= n.metrics.minScrollExtent + 4) {
-      if (!_visible) setState(() => _visible = true);
+      _visible.value = true;
       _lastPixels = px;
       _accum = 0;
       return false;
@@ -52,11 +61,11 @@ class _ScrollHidingScaffoldState extends State<ScrollHidingScaffold> {
       _lastPixels = px;
       if ((delta > 0) != (_accum > 0)) _accum = 0; // direction flipped → reset
       _accum += delta;
-      if (_accum > 36 && _visible) {
-        setState(() => _visible = false);
+      if (_accum > 36 && _visible.value) {
+        _visible.value = false;
         _accum = 0;
-      } else if (_accum < -36 && !_visible) {
-        setState(() => _visible = true);
+      } else if (_accum < -36 && !_visible.value) {
+        _visible.value = true;
         _accum = 0;
       }
     }
@@ -81,14 +90,20 @@ class _ScrollHidingScaffoldState extends State<ScrollHidingScaffold> {
                   child: widget.body,
                 ),
               ),
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOutCubic,
-                top: _visible ? 0 : -ScrollHidingScaffold.barHeight,
-                left: 0,
-                right: 0,
-                height: ScrollHidingScaffold.barHeight,
+              // Only this rebuilds when the bar toggles — the list above is
+              // untouched, so scrolling stays smooth.
+              ValueListenableBuilder<bool>(
+                valueListenable: _visible,
                 child: widget.bar,
+                builder: (context, visible, child) => AnimatedPositioned(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOutCubic,
+                  top: visible ? 0 : -ScrollHidingScaffold.barHeight,
+                  left: 0,
+                  right: 0,
+                  height: ScrollHidingScaffold.barHeight,
+                  child: child!,
+                ),
               ),
             ],
           ),

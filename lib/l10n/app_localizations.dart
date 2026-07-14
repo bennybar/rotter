@@ -181,6 +181,18 @@ abstract class L10n {
   /// **'Thread spacing'**
   String get threadSpacing;
 
+  /// No description provided for @predictiveBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Predictive back'**
+  String get predictiveBack;
+
+  /// No description provided for @predictiveBackHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Peek at the previous screen while swiping back'**
+  String get predictiveBackHint;
+
   /// No description provided for @language.
   ///
   /// In en, this message translates to:

@@ -51,6 +51,13 @@ class L10nEn extends L10n {
   String get threadSpacing => 'Thread spacing';
 
   @override
+  String get predictiveBack => 'Predictive back';
+
+  @override
+  String get predictiveBackHint =>
+      'Peek at the previous screen while swiping back';
+
+  @override
   String get language => 'Language';
 
   @override

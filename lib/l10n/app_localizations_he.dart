@@ -51,6 +51,12 @@ class L10nHe extends L10n {
   String get threadSpacing => 'ריווח באשכול';
 
   @override
+  String get predictiveBack => 'חזרה עם הצצה';
+
+  @override
+  String get predictiveBackHint => 'הצצה למסך הקודם בזמן החלקה לאחור';
+
+  @override
   String get language => 'שפה';
 
   @override

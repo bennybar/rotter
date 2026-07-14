@@ -61,6 +61,18 @@ ThemeData buildTheme(Accent accent, Brightness brightness) {
   return base.copyWith(
     scaffoldBackgroundColor: bg,
     splashFactory: InkSparkle.splashFactory,
+    // Back-gesture "sneak peek": on Android, predictive back shrinks the current
+    // page and reveals the previous one behind it as you drag (needs
+    // android:enableOnBackInvokedCallback=true in the manifest, and Android 13+
+    // for the animation — older versions just fall back to the normal transition).
+    // iOS keeps the Cupertino interactive edge-swipe, which already parallaxes the
+    // previous page in underneath.
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {
+        TargetPlatform.android: PredictiveBackPageTransitionsBuilder(),
+        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+      },
+    ),
     textTheme: text.copyWith(
       headlineMedium: text.headlineMedium
           ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.5, color: ink),

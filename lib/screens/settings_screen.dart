@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -51,6 +53,23 @@ class SettingsScreen extends StatelessWidget {
                     _rowLabel(context, Icons.density_medium_rounded, l.threadSpacing),
                     const SizedBox(height: 4),
                     const _ThreadDensitySlider(),
+                    // iOS always uses the Cupertino interactive edge-swipe, so this
+                    // choice only exists on Android.
+                    if (Platform.isAndroid)
+                      ValueListenableBuilder<bool>(
+                        valueListenable: s.predictiveBack,
+                        builder: (context, on, _) => SwitchListTile.adaptive(
+                          contentPadding: EdgeInsets.zero,
+                          secondary:
+                              Icon(Icons.swipe_right_alt_rounded, color: cMuted(context)),
+                          title: Text(l.predictiveBack),
+                          subtitle: Text(l.predictiveBackHint,
+                              style: TextStyle(fontSize: 12, color: cMuted(context))),
+                          value: on,
+                          activeTrackColor: Theme.of(context).colorScheme.primary,
+                          onChanged: s.setPredictiveBack,
+                        ),
+                      ),
                   ],
                 ),
               ),

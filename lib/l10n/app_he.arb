@@ -14,6 +14,8 @@
   "accentColor": "צבע הדגשה",
   "textSize": "גודל טקסט",
   "threadSpacing": "ריווח באשכול",
+  "predictiveBack": "חזרה עם הצצה",
+  "predictiveBackHint": "הצצה למסך הקודם בזמן החלקה לאחור",
   "language": "שפה",
   "languageSystem": "מערכת",
   "hebrew": "עברית",

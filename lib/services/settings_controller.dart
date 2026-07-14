@@ -21,6 +21,7 @@ class SettingsController {
   static const _scaleKey = 'text_scale';
   static const _sortKey = 'sort_mode'; // 'lastComment' | 'postTime'
   static const _densityKey = 'thread_density';
+  static const _predictiveBackKey = 'predictive_back';
 
   /// Readable text-size range, applied on top of the device's own scaling.
   static const double minScale = 0.9;
@@ -44,6 +45,11 @@ class SettingsController {
 
   /// In-thread comment spacing factor (1.0 = roomy; default is tighter).
   final ValueNotifier<double> threadDensity = ValueNotifier(0.7);
+
+  /// Android back gesture: true = system predictive back (drag peeks the previous
+  /// screen); false = the classic fade + slide-up transition. No effect on iOS,
+  /// which always uses the Cupertino interactive edge-swipe.
+  final ValueNotifier<bool> predictiveBack = ValueNotifier(true);
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -74,6 +80,14 @@ class SettingsController {
 
     final d = prefs.getDouble(_densityKey);
     if (d != null) threadDensity.value = d.clamp(minDensity, maxDensity);
+
+    predictiveBack.value = prefs.getBool(_predictiveBackKey) ?? true;
+  }
+
+  Future<void> setPredictiveBack(bool v) async {
+    predictiveBack.value = v;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_predictiveBackKey, v);
   }
 
   Future<void> setThreadDensity(double v) async {

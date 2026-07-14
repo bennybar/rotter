@@ -2,7 +2,7 @@ name: rotter_scoops
 description: "Rotter Scoops — a modern client for rotter.net scoops."
 publish_to: 'none'
 
-version: 1.0.14+14
+version: 1.0.15+15
 
 environment:
   sdk: ^3.9.2
@@ -51,8 +51,11 @@ flutter_launcher_icons:
   android: true
   ios: true
   remove_alpha_ios: true
-  background_color_ios: "#1A1206"
-  adaptive_icon_background: "#1A1206"
+  # Brand amber (matches the orange gradient + white R of appicon_light.png).
+  # This was #1A1206 (near-black), which made the Android adaptive icon look black
+  # in the launcher — the white R was being composited over a black background.
+  background_color_ios: "#F57C00"
+  adaptive_icon_background: "#F57C00"
   adaptive_icon_foreground: "assets/icon/adaptive_fg.png"
   adaptive_icon_monochrome: "assets/icon/adaptive_mono.png"
   min_sdk_android: 21

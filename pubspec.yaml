@@ -2,7 +2,7 @@ name: rotter_scoops
 description: "Rotter Scoops — a modern client for rotter.net scoops."
 publish_to: 'none'
 
-version: 1.0.15+15
+version: 1.0.16+16
 
 environment:
   sdk: ^3.9.2

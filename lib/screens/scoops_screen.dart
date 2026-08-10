@@ -34,6 +34,7 @@ class _ScoopsScreenState extends State<ScoopsScreen> {
   final _searchCtrl = TextEditingController();
   String _query = '';
   bool _searching = false; // toggles the in-app-bar search field
+  bool _myRepliesOnly = false; // show only threads the user has replied to
   List<Scoop> _loaded = const []; // latest resolved list, for "mark all read"
 
   @override
@@ -202,6 +203,14 @@ class _ScoopsScreenState extends State<ScoopsScreen> {
               title: Text(l.tabScoops),
               actions: [
                 IconButton(
+                  tooltip: l.filterMine,
+                  isSelected: _myRepliesOnly,
+                  color: _myRepliesOnly ? Theme.of(context).colorScheme.primary : null,
+                  icon: const Icon(Icons.forum_outlined),
+                  selectedIcon: const Icon(Icons.forum_rounded),
+                  onPressed: () => setState(() => _myRepliesOnly = !_myRepliesOnly),
+                ),
+                IconButton(
                   tooltip: l.markAllRead,
                   icon: const Icon(Icons.playlist_add_check_rounded),
                   onPressed: _markAllRead,
@@ -233,13 +242,21 @@ class _ScoopsScreenState extends State<ScoopsScreen> {
               final all = snap.data ?? const <Scoop>[];
               _loaded = all;
               final q = _query.toLowerCase();
-              final scoops = q.isEmpty
+              var scoops = q.isEmpty
                   ? all
                   : all.where((s) => s.title.toLowerCase().contains(q)).toList();
+              if (_myRepliesOnly) {
+                scoops =
+                    scoops.where((s) => MyRepliesStore.instance.replied(s.id)).toList();
+              }
               if (scoops.isEmpty) {
                 return _messageState(
-                    icon: q.isEmpty ? Icons.inbox_rounded : Icons.search_off_rounded,
-                    text: q.isEmpty ? l.emptyScoops : l.noResults);
+                    icon: _myRepliesOnly
+                        ? Icons.forum_outlined
+                        : (q.isEmpty ? Icons.inbox_rounded : Icons.search_off_rounded),
+                    text: _myRepliesOnly
+                        ? l.noMyReplies
+                        : (q.isEmpty ? l.emptyScoops : l.noResults));
               }
               return _list(scoops, l);
             },

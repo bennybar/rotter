@@ -249,6 +249,12 @@ class L10nEn extends L10n {
   String get emptyScoops => 'No scoops yet';
 
   @override
+  String get filterMine => 'Scoops I replied to';
+
+  @override
+  String get noMyReplies => 'You haven\'t replied to any scoops yet';
+
+  @override
   String get showSearchTab => 'Show search tab';
 
   @override

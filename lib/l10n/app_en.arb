@@ -77,6 +77,8 @@
   "@daysAgo": { "placeholders": { "n": { "type": "int" } } },
   "titleOnly": "(headline only)",
   "emptyScoops": "No scoops yet",
+  "filterMine": "Scoops I replied to",
+  "noMyReplies": "You haven't replied to any scoops yet",
   "showSearchTab": "Show search tab",
   "sortBy": "Sort scoops by",
   "sortLastComment": "Last comment",

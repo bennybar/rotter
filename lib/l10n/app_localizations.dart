@@ -535,6 +535,18 @@ abstract class L10n {
   /// **'No scoops yet'**
   String get emptyScoops;
 
+  /// No description provided for @filterMine.
+  ///
+  /// In en, this message translates to:
+  /// **'Scoops I replied to'**
+  String get filterMine;
+
+  /// No description provided for @noMyReplies.
+  ///
+  /// In en, this message translates to:
+  /// **'You haven\'t replied to any scoops yet'**
+  String get noMyReplies;
+
   /// No description provided for @showSearchTab.
   ///
   /// In en, this message translates to:

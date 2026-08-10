@@ -77,6 +77,8 @@
   "@daysAgo": { "placeholders": { "n": { "type": "int" } } },
   "titleOnly": "(כותרת בלבד)",
   "emptyScoops": "אין סקופים עדיין",
+  "filterMine": "סקופים שהגבתי בהם",
+  "noMyReplies": "עדיין לא הגבת לאף סקופ",
   "showSearchTab": "הצג לשונית חיפוש",
   "sortBy": "מיון סקופים לפי",
   "sortLastComment": "תגובה אחרונה",

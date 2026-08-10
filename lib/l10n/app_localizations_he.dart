@@ -244,6 +244,12 @@ class L10nHe extends L10n {
   String get emptyScoops => 'אין סקופים עדיין';
 
   @override
+  String get filterMine => 'סקופים שהגבתי בהם';
+
+  @override
+  String get noMyReplies => 'עדיין לא הגבת לאף סקופ';
+
+  @override
   String get showSearchTab => 'הצג לשונית חיפוש';
 
   @override

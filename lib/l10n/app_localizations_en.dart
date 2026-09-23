@@ -328,4 +328,248 @@ class L10nEn extends L10n {
 
   @override
   String get aboutBody => 'An unofficial reader for rotter.net scoops.';
+
+  @override
+  String get filterTitle => 'Show';
+
+  @override
+  String get filterAll => 'All';
+
+  @override
+  String get filterUnread => 'Unread';
+
+  @override
+  String get filterNewComments => 'New comments';
+
+  @override
+  String get filterSaved => 'Saved';
+
+  @override
+  String get filterFollowing => 'Following';
+
+  @override
+  String get filterShowAll => 'Show all scoops';
+
+  @override
+  String get emptyUnread => 'Nothing unread';
+
+  @override
+  String get emptyNewComments => 'No new comments';
+
+  @override
+  String get emptySaved => 'No saved scoops yet';
+
+  @override
+  String get emptyFollowing => 'No followed discussions yet';
+
+  @override
+  String get refreshFailed => 'Couldn\'t refresh — showing previous results';
+
+  @override
+  String get saveScoop => 'Save scoop';
+
+  @override
+  String get unsaveScoop => 'Remove from saved';
+
+  @override
+  String get share => 'Share';
+
+  @override
+  String get openOnRotter => 'Open on rotter.net';
+
+  @override
+  String get feedNewScoops => 'New scoops available';
+
+  @override
+  String get feedUpdated => 'Scoop updates available';
+
+  @override
+  String get follow => 'Follow discussion';
+
+  @override
+  String get unfollow => 'Unfollow discussion';
+
+  @override
+  String get commentNew => 'New since your last visit';
+
+  @override
+  String get backToReply => 'Back to reply';
+
+  @override
+  String get previousNew => 'Previous new comment';
+
+  @override
+  String get nextNew => 'Next new comment';
+
+  @override
+  String newOfCount(int index, int count) {
+    return '$index of $count new';
+  }
+
+  @override
+  String newRepliesCount(int count) {
+    return 'New replies: $count';
+  }
+
+  @override
+  String get searchThread => 'Search discussion';
+
+  @override
+  String get searchThreadHint => 'Text or username';
+
+  @override
+  String get previousMatch => 'Previous match';
+
+  @override
+  String get nextMatch => 'Next match';
+
+  @override
+  String matchesCount(int count) {
+    return 'Matches: $count';
+  }
+
+  @override
+  String get collapseAll => 'Collapse all discussions';
+
+  @override
+  String get expandAll => 'Expand all discussions';
+
+  @override
+  String get resumeReading => 'Resume reading';
+
+  @override
+  String get startTop => 'Start at the top';
+
+  @override
+  String get navigationHint =>
+      'Use the floating arrows to move between discussions or jump to the latest reply.';
+
+  @override
+  String get close => 'Close';
+
+  @override
+  String replyingTo(String name) {
+    return 'Replying to $name';
+  }
+
+  @override
+  String depthLevel(int n) {
+    return 'Nesting level $n';
+  }
+
+  @override
+  String get hideReplies => 'Hide replies';
+
+  @override
+  String showReplies(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Show $count replies',
+      one: 'Show 1 reply',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get discardDraftTitle => 'Discard this draft?';
+
+  @override
+  String get discard => 'Discard';
+
+  @override
+  String get keepEditing => 'Keep editing';
+
+  @override
+  String get notSignedInError => 'You\'re not signed in to rotter';
+
+  @override
+  String get blockedError =>
+      'rotter blocked the request — try again in a moment';
+
+  @override
+  String get done => 'Done';
+
+  @override
+  String get copy => 'Copy';
+
+  @override
+  String get copied => 'Copied';
+
+  @override
+  String get aiSection => 'AI summary';
+
+  @override
+  String get aiEnable => 'Summarize threads';
+
+  @override
+  String get aiKey => 'API key';
+
+  @override
+  String get aiKeyPlaceholder => 'OpenAI API key';
+
+  @override
+  String get aiKeyStored => 'Key stored — enter a new one to replace';
+
+  @override
+  String get aiSaveKey => 'Save key';
+
+  @override
+  String get aiRemoveKey => 'Remove';
+
+  @override
+  String get aiModel => 'Model';
+
+  @override
+  String get aiEndpoint => 'Endpoint';
+
+  @override
+  String get aiAdvanced => 'Advanced';
+
+  @override
+  String get aiPrivacyNote =>
+      'Summarizing sends the post and its comments to the endpoint below. Your key is kept in the device\'s secure storage and is never sent anywhere else.';
+
+  @override
+  String get aiSummary => 'Summary';
+
+  @override
+  String get aiSummarize => 'Summarize';
+
+  @override
+  String get aiSummarizing => 'Summarizing…';
+
+  @override
+  String get aiRegenerate => 'Regenerate';
+
+  @override
+  String get aiDisclaimer =>
+      'Written by a language model from the thread\'s own text. rotter posts are often unverified — check before relying on it.';
+
+  @override
+  String get aiErrorTitle => 'Couldn\'t summarize';
+
+  @override
+  String get aiErrorNotConfigured => 'Add an OpenAI API key in Settings first';
+
+  @override
+  String get aiErrorEmpty => 'The model returned nothing';
+
+  @override
+  String get aiLanguage => 'Summary language';
+
+  @override
+  String get aiLanguageFollowApp => 'Same as app';
+
+  @override
+  String get aiLanguageHebrew => 'Hebrew';
+
+  @override
+  String get aiLanguageEnglish => 'English';
+
+  @override
+  String get aiStatusConfigured => 'Configured';
+
+  @override
+  String get aiStatusOff => 'Not configured';
 }

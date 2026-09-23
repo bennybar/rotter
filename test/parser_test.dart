@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rotter_scoops/services/rotter_service.dart';
 import 'package:rotter_scoops/services/win1255.dart';
@@ -99,5 +101,40 @@ void main() {
       expect(body, isNot(contains('בתגובה להודעה מספר')));
       expect(body, isNot(contains('כותרת תגובה')));
     });
+  });
+
+  // Real pages captured from rotter.net (raw cp1255 bytes), shared with the iOS
+  // port. The thread has 59 messages, deep nesting and seven negative-points
+  // ("מינוס") members.
+  group('captured thread 960077', () {
+    final html =
+        decodeWin1255(File('test/fixtures/thread-960077.html').readAsBytesSync());
+    final thread = RotterService.instance.parseThread(html, '960077');
+
+    test('every comment gets a gregorian timestamp', () {
+      expect(thread.comments.length, 58);
+      expect(thread.comments.where((m) => m.timestamp == null), isEmpty);
+      expect(thread.comments.first.date, matches(RegExp(r'^\d{1,2}\.\d{1,2}\.\d{2}$')));
+    });
+
+    test('negative points are parsed', () {
+      expect(thread.messages.where((m) => (m.points ?? 0) < 0).length, 7);
+    });
+
+    test('card-meta scan agrees with the full parse', () {
+      final meta = parseCardMeta(html);
+      final latest = thread.comments
+          .map((m) => m.timestamp!)
+          .reduce((a, b) => a.isAfter(b) ? a : b);
+      expect(meta.author, thread.root!.author);
+      expect(meta.authorPoints, thread.root!.points);
+      expect(meta.replies, thread.comments.length);
+      expect(meta.lastComment, latest);
+    });
+  });
+
+  test('captured feed parses all 74 items', () {
+    final xml = decodeWin1255(File('test/fixtures/rotternews.xml').readAsBytesSync());
+    expect(RotterService.instance.parseRss(xml).length, 74);
   });
 }

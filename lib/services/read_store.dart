@@ -83,8 +83,19 @@ class ReadStore extends ChangeNotifier {
     }
   }
 
-  /// Sweep found new comments on a previously-read thread: drop it back to
-  /// unread and flag it "new".
+  /// Apply a reply count just observed on rotter (from the card metadata the
+  /// list fetches anyway — there's no separate sweep): resolve a pending
+  /// baseline, or flag new comments on a read thread whose count grew.
+  Future<void> reconcile(String id, int replyCount) async {
+    if (isPending(id)) {
+      await markRead(id, replyCount);
+    } else if (isRead(id) && replyCount > (seenCount(id) ?? replyCount)) {
+      await markNewComments(id);
+    }
+  }
+
+  /// A read thread gained new comments: drop it back to unread and flag it
+  /// "new".
   Future<void> markNewComments(String id) async {
     _seen.remove(id);
     _new.add(id);

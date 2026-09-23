@@ -2,10 +2,15 @@ import 'package:flutter/material.dart';
 
 import 'l10n/app_localizations.dart';
 import 'screens/home_shell.dart';
+import 'services/ai_store.dart';
 import 'services/auth_service.dart';
+import 'services/draft_store.dart';
 import 'services/my_replies_store.dart';
 import 'services/read_store.dart';
+import 'services/reading_store.dart';
 import 'services/rotter_login.dart';
+import 'services/saved_store.dart';
+import 'services/scoop_meta.dart';
 import 'services/settings_controller.dart';
 import 'theme.dart';
 
@@ -15,6 +20,13 @@ void main() async {
   await AuthService.instance.load();
   await ReadStore.instance.load();
   await MyRepliesStore.instance.load();
+  await SavedStore.saved.load();
+  await SavedStore.followed.load();
+  await ReadingStore.instance.load();
+  await DraftStore.instance.load();
+  await AIStore.instance.load();
+  // Card metadata from the last session, so cards paint complete at once.
+  await ScoopMetaCache.instance.load();
   // Refresh the rotter session in the background from saved credentials so the
   // user stays signed in across launches (no blocking, no re-login prompt).
   RotterLogin.refreshSession();

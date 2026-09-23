@@ -678,6 +678,450 @@ abstract class L10n {
   /// In en, this message translates to:
   /// **'An unofficial reader for rotter.net scoops.'**
   String get aboutBody;
+
+  /// No description provided for @filterTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Show'**
+  String get filterTitle;
+
+  /// No description provided for @filterAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get filterAll;
+
+  /// No description provided for @filterUnread.
+  ///
+  /// In en, this message translates to:
+  /// **'Unread'**
+  String get filterUnread;
+
+  /// No description provided for @filterNewComments.
+  ///
+  /// In en, this message translates to:
+  /// **'New comments'**
+  String get filterNewComments;
+
+  /// No description provided for @filterSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved'**
+  String get filterSaved;
+
+  /// No description provided for @filterFollowing.
+  ///
+  /// In en, this message translates to:
+  /// **'Following'**
+  String get filterFollowing;
+
+  /// No description provided for @filterShowAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Show all scoops'**
+  String get filterShowAll;
+
+  /// No description provided for @emptyUnread.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing unread'**
+  String get emptyUnread;
+
+  /// No description provided for @emptyNewComments.
+  ///
+  /// In en, this message translates to:
+  /// **'No new comments'**
+  String get emptyNewComments;
+
+  /// No description provided for @emptySaved.
+  ///
+  /// In en, this message translates to:
+  /// **'No saved scoops yet'**
+  String get emptySaved;
+
+  /// No description provided for @emptyFollowing.
+  ///
+  /// In en, this message translates to:
+  /// **'No followed discussions yet'**
+  String get emptyFollowing;
+
+  /// No description provided for @refreshFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t refresh — showing previous results'**
+  String get refreshFailed;
+
+  /// No description provided for @saveScoop.
+  ///
+  /// In en, this message translates to:
+  /// **'Save scoop'**
+  String get saveScoop;
+
+  /// No description provided for @unsaveScoop.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from saved'**
+  String get unsaveScoop;
+
+  /// No description provided for @share.
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
+  String get share;
+
+  /// No description provided for @openOnRotter.
+  ///
+  /// In en, this message translates to:
+  /// **'Open on rotter.net'**
+  String get openOnRotter;
+
+  /// No description provided for @feedNewScoops.
+  ///
+  /// In en, this message translates to:
+  /// **'New scoops available'**
+  String get feedNewScoops;
+
+  /// No description provided for @feedUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Scoop updates available'**
+  String get feedUpdated;
+
+  /// No description provided for @follow.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow discussion'**
+  String get follow;
+
+  /// No description provided for @unfollow.
+  ///
+  /// In en, this message translates to:
+  /// **'Unfollow discussion'**
+  String get unfollow;
+
+  /// No description provided for @commentNew.
+  ///
+  /// In en, this message translates to:
+  /// **'New since your last visit'**
+  String get commentNew;
+
+  /// No description provided for @backToReply.
+  ///
+  /// In en, this message translates to:
+  /// **'Back to reply'**
+  String get backToReply;
+
+  /// No description provided for @previousNew.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous new comment'**
+  String get previousNew;
+
+  /// No description provided for @nextNew.
+  ///
+  /// In en, this message translates to:
+  /// **'Next new comment'**
+  String get nextNew;
+
+  /// No description provided for @newOfCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{index} of {count} new'**
+  String newOfCount(int index, int count);
+
+  /// No description provided for @newRepliesCount.
+  ///
+  /// In en, this message translates to:
+  /// **'New replies: {count}'**
+  String newRepliesCount(int count);
+
+  /// No description provided for @searchThread.
+  ///
+  /// In en, this message translates to:
+  /// **'Search discussion'**
+  String get searchThread;
+
+  /// No description provided for @searchThreadHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Text or username'**
+  String get searchThreadHint;
+
+  /// No description provided for @previousMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous match'**
+  String get previousMatch;
+
+  /// No description provided for @nextMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Next match'**
+  String get nextMatch;
+
+  /// No description provided for @matchesCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Matches: {count}'**
+  String matchesCount(int count);
+
+  /// No description provided for @collapseAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Collapse all discussions'**
+  String get collapseAll;
+
+  /// No description provided for @expandAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Expand all discussions'**
+  String get expandAll;
+
+  /// No description provided for @resumeReading.
+  ///
+  /// In en, this message translates to:
+  /// **'Resume reading'**
+  String get resumeReading;
+
+  /// No description provided for @startTop.
+  ///
+  /// In en, this message translates to:
+  /// **'Start at the top'**
+  String get startTop;
+
+  /// No description provided for @navigationHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Use the floating arrows to move between discussions or jump to the latest reply.'**
+  String get navigationHint;
+
+  /// No description provided for @close.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get close;
+
+  /// No description provided for @replyingTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Replying to {name}'**
+  String replyingTo(String name);
+
+  /// No description provided for @depthLevel.
+  ///
+  /// In en, this message translates to:
+  /// **'Nesting level {n}'**
+  String depthLevel(int n);
+
+  /// No description provided for @hideReplies.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide replies'**
+  String get hideReplies;
+
+  /// No description provided for @showReplies.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Show 1 reply} other{Show {count} replies}}'**
+  String showReplies(int count);
+
+  /// No description provided for @discardDraftTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard this draft?'**
+  String get discardDraftTitle;
+
+  /// No description provided for @discard.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard'**
+  String get discard;
+
+  /// No description provided for @keepEditing.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep editing'**
+  String get keepEditing;
+
+  /// No description provided for @notSignedInError.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'re not signed in to rotter'**
+  String get notSignedInError;
+
+  /// No description provided for @blockedError.
+  ///
+  /// In en, this message translates to:
+  /// **'rotter blocked the request — try again in a moment'**
+  String get blockedError;
+
+  /// No description provided for @done.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get done;
+
+  /// No description provided for @copy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get copy;
+
+  /// No description provided for @copied.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied'**
+  String get copied;
+
+  /// No description provided for @aiSection.
+  ///
+  /// In en, this message translates to:
+  /// **'AI summary'**
+  String get aiSection;
+
+  /// No description provided for @aiEnable.
+  ///
+  /// In en, this message translates to:
+  /// **'Summarize threads'**
+  String get aiEnable;
+
+  /// No description provided for @aiKey.
+  ///
+  /// In en, this message translates to:
+  /// **'API key'**
+  String get aiKey;
+
+  /// No description provided for @aiKeyPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'OpenAI API key'**
+  String get aiKeyPlaceholder;
+
+  /// No description provided for @aiKeyStored.
+  ///
+  /// In en, this message translates to:
+  /// **'Key stored — enter a new one to replace'**
+  String get aiKeyStored;
+
+  /// No description provided for @aiSaveKey.
+  ///
+  /// In en, this message translates to:
+  /// **'Save key'**
+  String get aiSaveKey;
+
+  /// No description provided for @aiRemoveKey.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get aiRemoveKey;
+
+  /// No description provided for @aiModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Model'**
+  String get aiModel;
+
+  /// No description provided for @aiEndpoint.
+  ///
+  /// In en, this message translates to:
+  /// **'Endpoint'**
+  String get aiEndpoint;
+
+  /// No description provided for @aiAdvanced.
+  ///
+  /// In en, this message translates to:
+  /// **'Advanced'**
+  String get aiAdvanced;
+
+  /// No description provided for @aiPrivacyNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Summarizing sends the post and its comments to the endpoint below. Your key is kept in the device\'s secure storage and is never sent anywhere else.'**
+  String get aiPrivacyNote;
+
+  /// No description provided for @aiSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Summary'**
+  String get aiSummary;
+
+  /// No description provided for @aiSummarize.
+  ///
+  /// In en, this message translates to:
+  /// **'Summarize'**
+  String get aiSummarize;
+
+  /// No description provided for @aiSummarizing.
+  ///
+  /// In en, this message translates to:
+  /// **'Summarizing…'**
+  String get aiSummarizing;
+
+  /// No description provided for @aiRegenerate.
+  ///
+  /// In en, this message translates to:
+  /// **'Regenerate'**
+  String get aiRegenerate;
+
+  /// No description provided for @aiDisclaimer.
+  ///
+  /// In en, this message translates to:
+  /// **'Written by a language model from the thread\'s own text. rotter posts are often unverified — check before relying on it.'**
+  String get aiDisclaimer;
+
+  /// No description provided for @aiErrorTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t summarize'**
+  String get aiErrorTitle;
+
+  /// No description provided for @aiErrorNotConfigured.
+  ///
+  /// In en, this message translates to:
+  /// **'Add an OpenAI API key in Settings first'**
+  String get aiErrorNotConfigured;
+
+  /// No description provided for @aiErrorEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'The model returned nothing'**
+  String get aiErrorEmpty;
+
+  /// No description provided for @aiLanguage.
+  ///
+  /// In en, this message translates to:
+  /// **'Summary language'**
+  String get aiLanguage;
+
+  /// No description provided for @aiLanguageFollowApp.
+  ///
+  /// In en, this message translates to:
+  /// **'Same as app'**
+  String get aiLanguageFollowApp;
+
+  /// No description provided for @aiLanguageHebrew.
+  ///
+  /// In en, this message translates to:
+  /// **'Hebrew'**
+  String get aiLanguageHebrew;
+
+  /// No description provided for @aiLanguageEnglish.
+  ///
+  /// In en, this message translates to:
+  /// **'English'**
+  String get aiLanguageEnglish;
+
+  /// No description provided for @aiStatusConfigured.
+  ///
+  /// In en, this message translates to:
+  /// **'Configured'**
+  String get aiStatusConfigured;
+
+  /// No description provided for @aiStatusOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Not configured'**
+  String get aiStatusOff;
 }
 
 class _L10nDelegate extends LocalizationsDelegate<L10n> {

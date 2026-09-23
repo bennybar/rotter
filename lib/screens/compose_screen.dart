@@ -2,11 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../l10n/app_localizations.dart';
+import '../nav.dart';
 import '../services/auth_service.dart';
+import '../services/draft_store.dart';
 import '../services/my_replies_store.dart';
 import '../services/rotter_post.dart';
 import '../theme.dart';
 import 'login_screen.dart' show openLogin;
+
+/// Open [screen], signing in first when needed. Reply controls stay enabled
+/// while signed out — an inert button reads as broken rather than gated — so
+/// this signs in and then opens the composer that was actually asked for.
+/// Returns the composer's result (true = posted), or null if sign-in was
+/// abandoned.
+Future<bool?> openComposer(BuildContext context, ComposeScreen screen) async {
+  if (!AuthService.instance.loggedIn.value) {
+    final ok = await openLogin(context);
+    if (!ok || !context.mounted) return null;
+  }
+  return Navigator.of(context).push<bool>(modernRoute(screen));
+}
 
 /// Native composer for a reply, a new thread, or editing your own message.
 /// Submits directly to rotter (no webview UI). On failure it toasts an error —
@@ -19,10 +34,22 @@ class ComposeScreen extends StatefulWidget {
   /// When set, EDIT this message of [threadId] instead of posting (0 = the root).
   final int? editNum;
 
-  const ComposeScreen({super.key, this.threadId, this.parentNum = 0, this.editNum});
+  /// True when this is a tab's root (the New message tab) rather than a pushed
+  /// screen: nothing to pop, so a successful post clears the fields instead.
+  final bool embedded;
+
+  const ComposeScreen(
+      {super.key, this.threadId, this.parentNum = 0, this.editNum, this.embedded = false});
 
   bool get isEdit => editNum != null;
   bool get isNewThread => threadId == null && !isEdit;
+
+  /// Which draft this composer reads and writes.
+  String get draftKey => isEdit
+      ? 'e:$threadId:$editNum'
+      : isNewThread
+          ? 'new'
+          : 'r:$threadId:$parentNum';
 
   @override
   State<ComposeScreen> createState() => _ComposeScreenState();
@@ -37,7 +64,56 @@ class _ComposeScreenState extends State<ComposeScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.isEdit) _loadDraft();
+    if (widget.isEdit) {
+      _loadDraft();
+    } else {
+      _restoreDraft();
+    }
+    // Autosaved as it's typed, so a back-swipe or a failed send never costs the
+    // user their text.
+    _subject.addListener(_saveDraft);
+    _body.addListener(_saveDraft);
+  }
+
+  void _saveDraft() {
+    if (_loadingDraft) return;
+    DraftStore.instance.save(widget.draftKey, _subject.text, _body.text);
+  }
+
+  void _restoreDraft() {
+    final d = DraftStore.instance.draft(widget.draftKey);
+    if (d == null) return;
+    _subject.text = d.subject;
+    _body.text = d.body;
+  }
+
+  bool get _hasText => _subject.text.trim().isNotEmpty || _body.text.trim().isNotEmpty;
+
+  /// The explicit close offers to throw the text away; a back-swipe keeps it
+  /// (it's autosaved).
+  Future<void> _close() async {
+    if (!_hasText) {
+      Navigator.of(context).pop(false);
+      return;
+    }
+    final l = L10n.of(context)!;
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        content: Text(l.discardDraftTitle),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l.keepEditing)),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.red.shade400),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l.discard),
+          ),
+        ],
+      ),
+    );
+    if (discard != true || !mounted) return;
+    await DraftStore.instance.clear(widget.draftKey);
+    if (mounted) Navigator.of(context).pop(false);
   }
 
   @override
@@ -57,6 +133,8 @@ class _ComposeScreenState extends State<ComposeScreen> {
       _subject.text = draft.subject;
       _body.text = draft.body;
     }
+    // A saved draft is newer than whatever the server had, so it wins.
+    _restoreDraft();
     setState(() => _loadingDraft = false);
     if (draft == null && mounted) {
       final l = L10n.of(context)!;
@@ -107,15 +185,31 @@ class _ComposeScreenState extends State<ComposeScreen> {
       if (!widget.isNewThread && !widget.isEdit) {
         await MyRepliesStore.instance.add(widget.threadId!);
       }
+      await DraftStore.instance.clear(widget.draftKey);
       if (!mounted) return;
-      Navigator.of(context).pop(true);
+      if (widget.embedded) {
+        // A tab root has nowhere to go: clear the fields and stay put.
+        _subject.clear();
+        _body.clear();
+        setState(() => _busy = false);
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(L10n.of(context)!.postSuccess)));
+      } else {
+        Navigator.of(context).pop(true);
+      }
       return;
     }
 
-    // Couldn't post — toast the error and let them retry (no website fallback).
+    // Couldn't post — toast the error and let them retry (no website fallback);
+    // the text stays, and is in the draft too.
     final l = L10n.of(context)!;
+    final msg = switch (outcome) {
+      PostOutcome.notLoggedIn => l.notSignedInError,
+      PostOutcome.blocked => l.blockedError,
+      _ => l.postFailed,
+    };
     ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l.postFailed), duration: const Duration(seconds: 3)));
+        SnackBar(content: Text(msg), duration: const Duration(seconds: 3)));
     setState(() => _busy = false);
   }
 
@@ -129,6 +223,14 @@ class _ComposeScreenState extends State<ComposeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(title),
+        automaticallyImplyLeading: !widget.embedded,
+        leading: widget.embedded
+            ? null
+            : IconButton(
+                tooltip: l.cancel,
+                icon: const Icon(Icons.close_rounded),
+                onPressed: _busy ? null : _close,
+              ),
         actions: [
           Padding(
             padding: const EdgeInsetsDirectional.only(end: 8),
@@ -146,7 +248,9 @@ class _ComposeScreenState extends State<ComposeScreen> {
       ),
       body: _loadingDraft
           ? const Center(child: CircularProgressIndicator())
-          : Directionality(
+          : SafeArea(
+        top: false,
+        child: Directionality(
         textDirection: TextDirection.rtl,
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -157,8 +261,10 @@ class _ComposeScreenState extends State<ComposeScreen> {
               // replies — empty keeps rotter's "Re:…" default).
               TextField(
                 controller: _subject,
-                // Focus the title on load, but not when editing (text is prefilled).
-                autofocus: !widget.isEdit,
+                // Focus the title on load, but not when editing (text is prefilled)
+                // or as a tab root (IndexedStack builds it at launch — the keyboard
+                // would pop over the scoops list).
+                autofocus: !widget.isEdit && !widget.embedded,
                 enabled: !_busy,
                 textInputAction: TextInputAction.next,
                 style: TextStyle(
@@ -189,6 +295,7 @@ class _ComposeScreenState extends State<ComposeScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

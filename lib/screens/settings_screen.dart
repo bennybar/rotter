@@ -4,9 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../l10n/app_localizations.dart';
+import '../nav.dart';
+import '../services/ai_store.dart';
 import '../services/auth_service.dart';
 import '../services/settings_controller.dart';
 import '../theme.dart';
+import 'ai_settings_screen.dart';
 import 'login_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -95,18 +98,19 @@ class SettingsScreen extends StatelessWidget {
             const SizedBox(height: 14),
             _card(
               context,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _rowLabel(context, Icons.sort_rounded, l.sortBy),
-                    const SizedBox(height: 12),
-                    ValueListenableBuilder<SortMode>(
-                      valueListenable: s.sortMode,
-                      builder: (context, sort, _) => _SortSelector(mode: sort),
-                    ),
-                  ],
+              child: ListenableBuilder(
+                listenable: AIStore.instance,
+                builder: (context, _) => ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  leading: Icon(Icons.auto_awesome_rounded,
+                      color: Theme.of(context).colorScheme.primary),
+                  title: Text(l.aiSection,
+                      style: TextStyle(fontWeight: FontWeight.w700, color: cInk(context))),
+                  subtitle: Text(
+                      AIStore.instance.isReady ? l.aiStatusConfigured : l.aiStatusOff,
+                      style: TextStyle(color: cMuted(context))),
+                  trailing: Icon(Icons.chevron_right_rounded, color: cMuted(context)),
+                  onTap: () => Navigator.of(context).push(modernRoute(const AISettingsScreen())),
                 ),
               ),
             ),
@@ -209,34 +213,6 @@ class _ThemeSelector extends StatelessWidget {
             Expanded(
               child: _segment(context, o.$2, o.$3,
                   selected: mode == o.$1, onTap: () => SettingsController.instance.setMode(o.$1)),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SortSelector extends StatelessWidget {
-  final SortMode mode;
-  const _SortSelector({required this.mode});
-
-  @override
-  Widget build(BuildContext context) {
-    final l = L10n.of(context)!;
-    final opts = <(SortMode, IconData, String)>[
-      (SortMode.lastComment, Icons.forum_rounded, l.sortLastComment),
-      (SortMode.postTime, Icons.schedule_rounded, l.sortPostTime),
-    ];
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(color: cField(context), borderRadius: BorderRadius.circular(14)),
-      child: Row(
-        children: [
-          for (final o in opts)
-            Expanded(
-              child: _segment(context, o.$2, o.$3,
-                  selected: mode == o.$1,
-                  onTap: () => SettingsController.instance.setSortMode(o.$1)),
             ),
         ],
       ),

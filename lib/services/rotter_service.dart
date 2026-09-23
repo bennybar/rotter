@@ -1,5 +1,4 @@
 import 'dart:isolate';
-import 'dart:typed_data';
 
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
@@ -23,17 +22,21 @@ class RotterService {
 
   final _client = http.Client();
 
-  Future<String> _get(String url) async {
+  Future<List<int>> _getBytes(String url) async {
     final res = await _client.get(Uri.parse(url)).timeout(_timeout);
-    if (res.statusCode != 200) {
-      throw Exception('HTTP ${res.statusCode} for $url');
-    }
-    return decodeWin1255(res.bodyBytes);
+    if (res.statusCode != 200) throw RotterHttpException(res.statusCode, url);
+    return res.bodyBytes;
   }
 
   // ---- Post list (RSS) ----------------------------------------------------
 
-  Future<List<Scoop>> fetchScoops() async => parseRss(await _get(_rssUrl));
+  // Decode (cp1255) + parse in a background isolate, like card meta: a thread
+  // page is 100–400KB and building its DOM on the UI isolate drops frames.
+  // `RotterService.instance` inside the closure is that isolate's own copy.
+  Future<List<Scoop>> fetchScoops() async {
+    final bytes = await _getBytes(_rssUrl);
+    return Isolate.run(() => RotterService.instance.parseRss(decodeWin1255(bytes)));
+  }
 
   /// Pure RSS → scoops parse (network-free; unit-testable).
   List<Scoop> parseRss(String xml) {
@@ -55,36 +58,26 @@ class RotterService {
     return out;
   }
 
-  /// Cheap reply count (number of non-root messages) without building the tree.
-  /// Used by the list to detect new comments on already-read threads.
-  Future<int> fetchReplyCount(String id) async {
-    final body = await _get(threadUrl(id));
-    final nums = RegExp(r'<a\s+name="(\d+)"', caseSensitive: false)
-        .allMatches(body)
-        .map((m) => m.group(1))
-        .toSet();
-    // Subtract the root (num 0) if present.
-    return nums.contains('0') ? nums.length - 1 : nums.length;
-  }
-
-  /// Lightweight per-card metadata (root author + reply count + last-comment
-  /// time) for list cards — the RSS doesn't carry these. The last-comment time
-  /// powers the "sort by last comment" option. Browserless: one `.shtml` fetch.
-  Future<({String? author, int replies, DateTime? lastComment})> fetchCardMeta(String id) async {
-    final res = await _client.get(Uri.parse(threadUrl(id))).timeout(_timeout);
-    if (res.statusCode != 200) {
-      throw Exception('HTTP ${res.statusCode} for ${threadUrl(id)}');
-    }
+  /// Lightweight per-card metadata (root author + their points, reply count,
+  /// last-comment time) for list cards — the RSS doesn't carry these. The
+  /// last-comment time powers the "sort by last comment" option. Browserless:
+  /// one `.shtml` fetch.
+  Future<CardMeta> fetchCardMeta(String id) async {
+    final url = threadUrl(id);
+    final res = await _client.get(Uri.parse(url)).timeout(_timeout);
+    if (res.statusCode != 200) throw RotterHttpException(res.statusCode, url);
     final bytes = res.bodyBytes;
-    // Decode (cp1255) + parse the 100KB page OFF the main isolate, otherwise each
-    // card's parse drops frames and the list scrolls choppily.
-    return Isolate.run(() => _parseCardMeta(bytes));
+    // Decode (cp1255) + scan the 100KB page OFF the main isolate, otherwise each
+    // card drops frames and the list scrolls choppily.
+    return Isolate.run(() => parseCardMeta(decodeWin1255(bytes)));
   }
 
   // ---- Thread + comments (.shtml) -----------------------------------------
 
-  Future<Thread> fetchThread(String id) async =>
-      parseThread(await _get(threadUrl(id)), id);
+  Future<Thread> fetchThread(String id) async {
+    final bytes = await _getBytes(threadUrl(id));
+    return Isolate.run(() => RotterService.instance.parseThread(decodeWin1255(bytes), id));
+  }
 
   /// Pure thread-HTML → tree parse (network-free; unit-testable).
   Thread parseThread(String html, String id) {
@@ -101,20 +94,6 @@ class RotterService {
       final replyTo = table.querySelector('a[href^="#"]');
       final (date, time) = _dateTime(table);
       final th = table.innerHtml;
-      // Points/raters/messages read as "<n> <label>". NEGATIVE points are written
-      // with the Hebrew word "מינוס" before the number (e.g. "מינוס 3 נקודות" = -3),
-      // not a minus sign — AND rotter closes a <b> between the number and the label
-      // ("מינוס 27</b> נקודות"), so allow tags between them. Both were dropping
-      // negatives before.
-      int? stat(String label) {
-        final m =
-            RegExp('(מינוס\\s+)?([\\d,]+)\\s*(?:</?[^>]+>\\s*)*$label').firstMatch(th);
-        if (m == null) return null;
-        final n = int.tryParse(m.group(2)!.replaceAll(',', ''));
-        if (n == null) return null;
-        return m.group(1) != null ? -n : n;
-      }
-
       messages.add(Message(
         num: int.parse(name),
         author: (a.querySelector('b')?.text ?? a.text).trim(),
@@ -124,14 +103,14 @@ class RotterService {
         profileUrl: table.querySelector('a[href*="view_user_ratings"]')?.attributes['href'],
         // Member stats shown next to the author in the thread HTML.
         joinDate: RegExp(r'חבר מתאריך\s*([\d.]+)').firstMatch(th)?.group(1),
-        messages: stat('הודעות'),
-        raters: stat('מדרגים'),
-        points: stat('נקודות'),
+        messages: parseStat('הודעות', th),
+        raters: parseStat('מדרגים', th),
+        points: parseStat('נקודות', th),
         title: _title(table, isRoot: name == '0'),
         bodyHtml: _bodyHtml(table),
         date: date,
         time: time,
-        timestamp: _commentTimestamp(date, time),
+        timestamp: commentTimestamp(date, time),
         parent: replyTo == null
             ? null
             : int.tryParse(replyTo.attributes['href']!.replaceAll('#', '')),
@@ -148,7 +127,7 @@ class RotterService {
   /// Parse a comment's gregorian `DD.MM.YY` + `HH:MM` into a local DateTime.
   /// (The root's date is a Hebrew calendar string and isn't parsed here — the
   /// reader falls back to the RSS pubDate for the root.)
-  static DateTime? _commentTimestamp(String? date, String? time) {
+  static DateTime? commentTimestamp(String? date, String? time) {
     if (date == null) return null;
     final d = RegExp(r'^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$').firstMatch(date.trim());
     if (d == null) return null;
@@ -188,8 +167,8 @@ class RotterService {
 
   /// The post date + time live in the header cell: the time is a red
   /// `<font color="red">HH:MM</font>` (NOT the red "feedback" link, which also
-  /// exists), and the date is the text right before it (gregorian DD.MM.YY for
-  /// comments, a Hebrew date for the root).
+  /// exists), and the date is the gregorian DD.MM.YY in the same cell (falling
+  /// back to the text right before the time when there is none).
   static (String?, String?) _dateTime(dom.Element table) {
     dom.Element? timeEl;
     for (final f in table.querySelectorAll('font[color="red"]')) {
@@ -200,6 +179,19 @@ class RotterService {
     }
     if (timeEl == null) return (null, null);
     final time = timeEl.text.trim();
+    // Every header — root and comments alike — reads Hebrew date, time, then
+    // the gregorian date, so "the text before the time" is always the Hebrew
+    // date (which doesn't parse: every comment had a null timestamp and
+    // last-comment sort had nothing to sort on). Take the gregorian DD.MM.YY
+    // from anywhere in the enclosing <td> instead — that scope excludes the
+    // author's join date, which sits in the neighbouring cell.
+    dom.Element? cell = timeEl.parent;
+    while (cell != null && cell.localName != 'td' && cell.localName != 'th') {
+      cell = cell.parent;
+    }
+    final gregorian =
+        RegExp(r'\d{1,2}\.\d{1,2}\.\d{2,4}').firstMatch(cell?.text ?? '')?.group(0);
+    if (gregorian != null) return (gregorian, time);
     final cellText = (timeEl.parent?.text ?? '').replaceAll(' ', ' ');
     final idx = cellText.indexOf(time);
     final before = (idx >= 0 ? cellText.substring(0, idx) : cellText)
@@ -327,29 +319,70 @@ class RotterService {
   }
 }
 
-/// Runs in a background isolate (via [Isolate.run]) so the 100KB cp1255 decode +
-/// HTML parse for a list card don't block the UI. Returns only sendable values.
-({String? author, int replies, DateTime? lastComment}) _parseCardMeta(Uint8List bytes) {
-  final doc = html_parser.parse(decodeWin1255(bytes));
-  final root = doc.querySelector('a[name="0"]');
-  final author = root == null ? null : (root.querySelector('b')?.text ?? root.text).trim();
-  final nums = <String>{};
+/// A non-200 from rotter. A 404 means the thread doesn't exist — removed by a
+/// moderator, or so new rotter hasn't generated its static page yet.
+class RotterHttpException implements Exception {
+  final int status;
+  final String url;
+  const RotterHttpException(this.status, this.url);
+  bool get isNotFound => status == 404;
+  @override
+  String toString() => 'HTTP $status for $url';
+}
+
+/// Member stats read as `<n> <label>`. NEGATIVE points are written with the
+/// Hebrew word "מינוס" before the number (e.g. "מינוס 3 נקודות" = -3), not a
+/// minus sign — AND rotter closes a <b> between the number and the label
+/// ("מינוס 27</b> נקודות"), so tags are allowed between them.
+int? parseStat(String label, String html) {
+  final m = RegExp('(מינוס\\s+)?([\\d,]+)\\s*(?:</?[^>]+>\\s*)*$label').firstMatch(html);
+  if (m == null) return null;
+  final n = int.tryParse(m.group(2)!.replaceAll(',', ''));
+  if (n == null) return null;
+  return m.group(1) != null ? -n : n;
+}
+
+/// Per-card metadata the RSS doesn't carry.
+typedef CardMeta = ({String? author, int? authorPoints, int replies, DateTime? lastComment});
+
+final _redClockThenDate = RegExp(
+    r'''color=["']?red["']?[^>]*>\s*(\d{1,2}:\d{2})\s*</font>[\s\S]{0,300}?(\d{1,2}\.\d{1,2}\.\d{2,4})''',
+    caseSensitive: false);
+
+/// Pulls the handful of facts a list card needs straight out of the raw HTML,
+/// without building a DOM — opening the app does this for ~75 pages of
+/// 50–400KB, and the full parse dominated. `parser_test` pins the output against
+/// [RotterService.parseThread] on a real captured thread.
+CardMeta parseCardMeta(String html) {
+  // The original post's slice: from its <a name="0"> anchor to the next
+  // message's anchor, so the FIRST COMMENTER's points aren't read as the poster's.
+  var root = '';
+  final anchor = RegExp(r'<a\s+name="0"[^>]*>', caseSensitive: false).firstMatch(html);
+  if (anchor != null) {
+    final rest = html.substring(anchor.end);
+    final next = RegExp(r'<a\s+name="\d', caseSensitive: false).firstMatch(rest);
+    root = next == null ? rest : rest.substring(0, next.start);
+  }
+  final author = RegExp(r'^\s*(?:<b>)?\s*([^<]+)').firstMatch(root)?.group(1)?.trim();
+
+  final nums = RegExp(r'<a\s+name="(\d+)"', caseSensitive: false)
+      .allMatches(html)
+      .map((m) => m.group(1))
+      .toSet();
+
+  // Every header is `…<font color=red>HH:MM</font> … DD.MM.YY…`: pair each red
+  // clock with the gregorian date that follows it. The window is bounded so a
+  // header missing its date can't pair with the next message's.
   DateTime? last;
-  for (final a in doc.querySelectorAll('a[name]')) {
-    final n = a.attributes['name'];
-    if (n == null || !RegExp(r'^\d+$').hasMatch(n)) continue;
-    nums.add(n);
-    if (n == '0') continue; // root carries a Hebrew-calendar date; skip it
-    final table = RotterService._ancestorTable(a);
-    if (table == null) continue;
-    final (date, time) = RotterService._dateTime(table);
-    final ts = RotterService._commentTimestamp(date, time);
+  for (final m in _redClockThenDate.allMatches(html)) {
+    final ts = RotterService.commentTimestamp(m.group(2), m.group(1));
     if (ts != null && (last == null || ts.isAfter(last))) last = ts;
   }
-  final replies = nums.contains('0') ? nums.length - 1 : nums.length;
+
   return (
-    author: author?.isEmpty == true ? null : author,
-    replies: replies,
+    author: author == null || author.isEmpty ? null : author,
+    authorPoints: parseStat('נקודות', root),
+    replies: nums.contains('0') ? nums.length - 1 : nums.length,
     lastComment: last,
   );
 }

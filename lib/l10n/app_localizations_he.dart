@@ -323,4 +323,247 @@ class L10nHe extends L10n {
 
   @override
   String get aboutBody => 'קורא לא רשמי לסקופים של rotter.net.';
+
+  @override
+  String get filterTitle => 'הצג';
+
+  @override
+  String get filterAll => 'הכל';
+
+  @override
+  String get filterUnread => 'לא נקראו';
+
+  @override
+  String get filterNewComments => 'תגובות חדשות';
+
+  @override
+  String get filterSaved => 'שמורים';
+
+  @override
+  String get filterFollowing => 'במעקב';
+
+  @override
+  String get filterShowAll => 'הצג את כל הסקופים';
+
+  @override
+  String get emptyUnread => 'הכל נקרא';
+
+  @override
+  String get emptyNewComments => 'אין תגובות חדשות';
+
+  @override
+  String get emptySaved => 'אין עדיין סקופים שמורים';
+
+  @override
+  String get emptyFollowing => 'אין עדיין דיונים במעקב';
+
+  @override
+  String get refreshFailed => 'הרענון נכשל — מוצגות התוצאות הקודמות';
+
+  @override
+  String get saveScoop => 'שמירת סקופ';
+
+  @override
+  String get unsaveScoop => 'הסרה מהשמורים';
+
+  @override
+  String get share => 'שיתוף';
+
+  @override
+  String get openOnRotter => 'פתיחה ב-rotter.net';
+
+  @override
+  String get feedNewScoops => 'סקופים חדשים זמינים';
+
+  @override
+  String get feedUpdated => 'עדכונים לסקופים זמינים';
+
+  @override
+  String get follow => 'עקוב אחר הדיון';
+
+  @override
+  String get unfollow => 'הפסק לעקוב';
+
+  @override
+  String get commentNew => 'חדש מאז הביקור האחרון';
+
+  @override
+  String get backToReply => 'חזרה לתגובה';
+
+  @override
+  String get previousNew => 'התגובה החדשה הקודמת';
+
+  @override
+  String get nextNew => 'התגובה החדשה הבאה';
+
+  @override
+  String newOfCount(int index, int count) {
+    return 'חדשות: $index מתוך $count';
+  }
+
+  @override
+  String newRepliesCount(int count) {
+    return 'תגובות חדשות: $count';
+  }
+
+  @override
+  String get searchThread => 'חיפוש בדיון';
+
+  @override
+  String get searchThreadHint => 'טקסט או שם משתמש';
+
+  @override
+  String get previousMatch => 'התוצאה הקודמת';
+
+  @override
+  String get nextMatch => 'התוצאה הבאה';
+
+  @override
+  String matchesCount(int count) {
+    return 'תוצאות: $count';
+  }
+
+  @override
+  String get collapseAll => 'כווץ את כל הדיונים';
+
+  @override
+  String get expandAll => 'הרחב את כל הדיונים';
+
+  @override
+  String get resumeReading => 'המשך מהמקום שבו עצרת';
+
+  @override
+  String get startTop => 'התחל מלמעלה';
+
+  @override
+  String get navigationHint =>
+      'החצים הצפים מאפשרים לעבור בין דיונים או לדלג לתגובה החדשה ביותר.';
+
+  @override
+  String get close => 'סגור';
+
+  @override
+  String replyingTo(String name) {
+    return 'בתגובה ל$name';
+  }
+
+  @override
+  String depthLevel(int n) {
+    return 'עומק $n';
+  }
+
+  @override
+  String get hideReplies => 'הסתר תגובות';
+
+  @override
+  String showReplies(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'הצג $count תגובות',
+      one: 'הצג תגובה אחת',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get discardDraftTitle => 'למחוק את הטיוטה?';
+
+  @override
+  String get discard => 'מחיקה';
+
+  @override
+  String get keepEditing => 'המשך עריכה';
+
+  @override
+  String get notSignedInError => 'אינך מחובר/ת לרוטר';
+
+  @override
+  String get blockedError => 'רוטר חסם את הבקשה — נסו שוב בעוד רגע';
+
+  @override
+  String get done => 'סיום';
+
+  @override
+  String get copy => 'העתקה';
+
+  @override
+  String get copied => 'הועתק';
+
+  @override
+  String get aiSection => 'סיכום AI';
+
+  @override
+  String get aiEnable => 'סיכום אשכולות';
+
+  @override
+  String get aiKey => 'מפתח API';
+
+  @override
+  String get aiKeyPlaceholder => 'מפתח API של OpenAI';
+
+  @override
+  String get aiKeyStored => 'מפתח שמור — הזינו חדש כדי להחליף';
+
+  @override
+  String get aiSaveKey => 'שמירת מפתח';
+
+  @override
+  String get aiRemoveKey => 'הסרה';
+
+  @override
+  String get aiModel => 'מודל';
+
+  @override
+  String get aiEndpoint => 'כתובת ה-API';
+
+  @override
+  String get aiAdvanced => 'מתקדם';
+
+  @override
+  String get aiPrivacyNote =>
+      'סיכום שולח את ההודעה והתגובות לכתובת שלמטה. המפתח נשמר באחסון המאובטח של המכשיר ואינו נשלח לשום מקום אחר.';
+
+  @override
+  String get aiSummary => 'סיכום';
+
+  @override
+  String get aiSummarize => 'סיכום';
+
+  @override
+  String get aiSummarizing => 'מסכם…';
+
+  @override
+  String get aiRegenerate => 'יצירה מחדש';
+
+  @override
+  String get aiDisclaimer =>
+      'נכתב על ידי מודל שפה מתוך טקסט האשכול. פרסומים ברוטר לרוב אינם מאומתים — בדקו לפני שתסתמכו על זה.';
+
+  @override
+  String get aiErrorTitle => 'הסיכום נכשל';
+
+  @override
+  String get aiErrorNotConfigured => 'הוסיפו מפתח API של OpenAI בהגדרות';
+
+  @override
+  String get aiErrorEmpty => 'המודל לא החזיר תשובה';
+
+  @override
+  String get aiLanguage => 'שפת הסיכום';
+
+  @override
+  String get aiLanguageFollowApp => 'כמו האפליקציה';
+
+  @override
+  String get aiLanguageHebrew => 'עברית';
+
+  @override
+  String get aiLanguageEnglish => 'אנגלית';
+
+  @override
+  String get aiStatusConfigured => 'מוגדר';
+
+  @override
+  String get aiStatusOff => 'לא מוגדר';
 }

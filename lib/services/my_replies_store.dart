@@ -34,4 +34,14 @@ class MyRepliesStore extends ChangeNotifier {
       await prefs.setString(_key, jsonEncode(_threads.toList()));
     }
   }
+
+  /// Forget everything on sign-out. The set isn't namespaced by account, so
+  /// leaving it would show one user's replied-to threads to the next.
+  Future<void> clear() async {
+    if (_threads.isEmpty) return;
+    _threads.clear();
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_key);
+  }
 }

@@ -3,6 +3,8 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'my_replies_store.dart';
+
 /// Tracks the rotter.net session and holds the saved credentials.
 ///
 /// The session cookie lives in the shared WebView cookie jar (handled by
@@ -54,13 +56,15 @@ class AuthService {
 
   /// User-initiated sign-out: forget the saved credentials and end the rotter
   /// session by clearing the shared WebView cookie jar (otherwise the next
-  /// compose would still post as the previous account).
+  /// compose would still post as the previous account). "My replies" is
+  /// cleared too — it isn't namespaced by account.
   Future<void> signOut() async {
     try {
       await CookieManager.instance().deleteAllCookies();
     } catch (_) {/* best-effort */}
     await _secure.delete(key: _secUserKey);
     await _secure.delete(key: _secPassKey);
+    await MyRepliesStore.instance.clear();
     await _clearLocal();
   }
 

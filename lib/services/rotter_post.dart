@@ -3,6 +3,7 @@ import 'package:html/parser.dart' as html_parser;
 
 import 'auth_service.dart';
 import 'rotter_gated.dart';
+import 'rotter_login.dart';
 import 'win1255.dart';
 
 enum PostOutcome { success, notLoggedIn, blocked, error }
@@ -85,12 +86,18 @@ class RotterPost {
   static Future<EditDraft?> loadForEdit({
     required String threadId,
     required int num,
+    bool isRetry = false,
   }) async {
     final r = await RotterGated.request(_editUrl(threadId, num));
     if (r == null || r.status == 403) return null;
     final doc = html_parser.parse(r.text);
     final textarea = doc.querySelector('textarea');
     if (textarea == null) {
+      // Same expired-session case as _post, and worse for being silent: the
+      // composer would open empty and saving would blank the message.
+      if (!isRetry && await RotterLogin.reauthenticate()) {
+        return loadForEdit(threadId: threadId, num: num, isRetry: true);
+      }
       debugPrint('RotterPost.loadForEdit: no textarea (not signed in / not author?)');
       return null;
     }
@@ -108,6 +115,7 @@ class RotterPost {
     required String subject,
     required String body,
     bool topicType = false,
+    bool isRetry = false,
   }) async {
     // 1. GET the form, only to read its hidden `rand` token.
     final r1 = await RotterGated.request(getUrl);
@@ -118,8 +126,23 @@ class RotterPost {
     }
 
     final doc = html_parser.parse(formHtml);
-    // No textarea → we're not signed in (or may not edit this message).
-    if (doc.querySelector('textarea') == null) return PostOutcome.notLoggedIn;
+    // No textarea → rotter served this as a guest: the session expired (it
+    // lapses while the app sits open), or we may not edit this message. The
+    // credentials are saved for exactly this, so sign in again and ask for the
+    // form once more; only a second refusal is a real "not signed in".
+    if (doc.querySelector('textarea') == null) {
+      if (isRetry || !await RotterLogin.reauthenticate()) return PostOutcome.notLoggedIn;
+      return _post(
+        az: az,
+        getUrl: getUrl,
+        om: om,
+        omm: omm,
+        subject: subject,
+        body: body,
+        topicType: topicType,
+        isRetry: true,
+      );
+    }
     final rand = doc.querySelector('input[name="rand"]')?.attributes['value'] ??
         doc.querySelector('input[name="random"]')?.attributes['value'];
     if (rand == null) {

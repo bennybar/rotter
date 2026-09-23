@@ -18,12 +18,17 @@ class ScrollHidingScaffold extends StatefulWidget {
   final Widget? floatingActionButton;
   final FloatingActionButtonLocation? floatingActionButtonLocation;
 
+  /// Keep the bar showing regardless of scrolling — e.g. while it holds search
+  /// controls whose own jumps would otherwise scroll it away.
+  final bool pinned;
+
   const ScrollHidingScaffold({
     super.key,
     required this.bar,
     required this.body,
     this.floatingActionButton,
     this.floatingActionButtonLocation,
+    this.pinned = false,
   });
 
   @override
@@ -39,6 +44,12 @@ class _ScrollHidingScaffoldState extends State<ScrollHidingScaffold> {
   double _accum = 0; // accumulated drag since the last toggle
 
   @override
+  void didUpdateWidget(ScrollHidingScaffold old) {
+    super.didUpdateWidget(old);
+    if (widget.pinned) _visible.value = true;
+  }
+
+  @override
   void dispose() {
     _visible.dispose();
     super.dispose();
@@ -47,6 +58,12 @@ class _ScrollHidingScaffoldState extends State<ScrollHidingScaffold> {
   bool _onScroll(ScrollNotification n) {
     if (n.metrics.axis != Axis.vertical) return false;
     final px = n.metrics.pixels;
+    if (widget.pinned) {
+      _visible.value = true;
+      _lastPixels = px;
+      _accum = 0;
+      return false;
+    }
 
     // Always reveal near the very top, so the bar can never get stuck hidden.
     if (px <= n.metrics.minScrollExtent + 4) {

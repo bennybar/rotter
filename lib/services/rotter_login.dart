@@ -67,16 +67,31 @@ class RotterLogin {
     return const LoginResult(LoginOutcome.wrongCredentials);
   }
 
-  /// Best-effort silent refresh at startup: if credentials are stored, sign in
-  /// again so the session cookie is fresh. Wrong saved credentials clear the
-  /// logged-in flag (but keep the creds so the user can fix them); anything else
-  /// (offline, Cloudflare) leaves the last-known state untouched.
-  static Future<void> refreshSession() async {
+  /// Sign in again from the stored credentials; true if signed in afterwards.
+  ///
+  /// rotter's session cookie expires while the app is open and nothing says so
+  /// — the first sign is a form coming back as though we were a guest, which is
+  /// when this is called. Only credentials that are actually *rejected* clear
+  /// the signed-in flag (the credentials are kept so the user can fix them);
+  /// offline / Cloudflare being slow is no evidence about the account, so the
+  /// last-known state is left alone.
+  static Future<bool> reauthenticate() async {
     final creds = await AuthService.instance.credentials();
-    if (creds == null) return;
+    if (creds == null) {
+      await AuthService.instance.markLoggedOut();
+      return false;
+    }
     final r = await attempt(user: creds.user, pass: creds.pass);
     if (r.outcome == LoginOutcome.wrongCredentials) {
       await AuthService.instance.markLoggedOut();
     }
+    return r.outcome == LoginOutcome.success;
+  }
+
+  /// Best-effort silent refresh at startup, so the session cookie is fresh
+  /// before the user reaches for anything that needs it.
+  static Future<void> refreshSession() async {
+    if (await AuthService.instance.credentials() == null) return;
+    await reauthenticate();
   }
 }

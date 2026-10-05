@@ -39,8 +39,11 @@ object RotterLogin {
             listOf("cmd" to "login", "az" to "login", "שם-משתמש" to user, "סיסמא" to pass),
         )
         val resp = RotterGated.request(BASE, method = "POST", body = body)
-        if (resp == null || resp.status == 403) return LoginResult(LoginOutcome.failed)
+        // Anything but a plain 200 (a Cloudflare challenge, a 5xx) says nothing
+        // about the password: report a failure, never "wrong credentials".
+        if (resp == null || resp.status != 200) return LoginResult(LoginOutcome.failed)
         val post = resp.text.lowercase()
+        if (post.contains("just a moment") || post.contains("attention required")) return LoginResult(LoginOutcome.failed)
         Log.d(TAG, "POST: status=${resp.status} len=${post.length} logout=${post.contains("az=logout")}")
         // The login response (after following its redirect) shows the logout
         // link when sign-in succeeded.
@@ -52,6 +55,9 @@ object RotterLogin {
         val verify = RotterGated.request("$BASE?az=post&forum=scoops1")
             ?: return LoginResult(LoginOutcome.failed)
         val html = verify.text.lowercase()
+        if (verify.status != 200 || html.contains("just a moment") || html.contains("attention required")) {
+            return LoginResult(LoginOutcome.failed)
+        }
         Log.d(TAG, "VERIFY: status=${verify.status} logout=${html.contains("az=logout")} textarea=${html.contains("<textarea")}")
         if (html.contains("az=logout") || html.contains("<textarea")) return success(user)
         return LoginResult(LoginOutcome.wrongCredentials)

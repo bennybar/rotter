@@ -328,12 +328,18 @@ class ThreadState(val scoop: Scoop, private val scope: CoroutineScope) {
      * Loads the thread, catching errors into state so they're shown in-UI (a
      * fresh thread's `.shtml` snapshot can 404 until rotter generates it).
      */
+    private var loadGeneration = 0
+
     suspend fun load() {
+        val generation = ++loadGeneration
         loading = true
         error = null
         try {
             val id = scoop.id
             val t = RotterService.fetchThread(id)
+            // A newer load (pull to refresh, post-reply refresh) started while
+            // this one was in flight: let that one publish.
+            if (generation != loadGeneration) return
             // Parse the first screenfuls' bodies off the main thread before
             // showing the thread (so its first frames don't), and the rest
             // after it is on screen — never the whole thread up front, which
@@ -374,6 +380,7 @@ class ThreadState(val scoop: Scoop, private val scope: CoroutineScope) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            if (generation != loadGeneration) return
             error = e
             loading = false
         }
@@ -619,7 +626,7 @@ private fun ThreadTitleBar(s: ThreadState) {
             }
             if (t != null) {
                 Box {
-                    IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, null) }
+                    IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, l.moreOptions) }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         val following = SavedStore.followed.contains(s.scoop.id)
                         DropdownMenuItem(

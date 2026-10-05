@@ -21,6 +21,20 @@ import kotlin.math.roundToInt
 enum class ThemeMode { system, light, dark }
 
 /**
+ * Per-thread history only matters while a thread can still be in the feed.
+ * Thread ids grow (~100 a day); forget ids more than [HISTORY_SPAN] behind
+ * the newest one kept, so the stored JSON — rewritten on every change and
+ * loaded at launch — stays bounded (about six months).
+ */
+private const val HISTORY_SPAN = 20_000L
+
+internal fun pruneOld(ids: MutableSet<String>) {
+    if (ids.size < 2_000) return
+    val newest = ids.maxOfOrNull { it.toLongOrNull() ?: 0L } ?: return
+    ids.removeAll { (it.toLongOrNull() ?: newest) < newest - HISTORY_SPAN }
+}
+
+/**
  * Selectable colour themes (stored under the old "accent" key). Amber is the
  * classic look; every other theme also tints the app's surfaces.
  */
@@ -211,6 +225,8 @@ object AuthService {
             CookieManager.getInstance().removeAllCookies(null)
             CookieManager.getInstance().flush()
         } catch (_: Exception) { /* best-effort */ }
+        // Its page context was cleared with the cookies: boot a fresh one next time.
+        com.bennybarak.scoops.rotter_scoops.net.RotterGated.reset()
         withContext(Dispatchers.IO) {
             SecureStore.delete(SEC_USER_KEY)
             SecureStore.delete(SEC_PASS_KEY)
@@ -293,7 +309,7 @@ object ReadStore {
         fresh.clear()
         Prefs.getString(KEY)?.let { raw ->
             val o = JSONObject(raw)
-            for (k in o.keys()) seen[k] = o.getInt(k)
+            for (k in o.keys()) if (!o.isNull(k)) seen[k] = o.optInt(k, PENDING)
         }
         Prefs.getString(NEW_KEY)?.let { raw ->
             val a = JSONArray(raw)
@@ -357,6 +373,7 @@ object ReadStore {
     }
 
     private fun save() {
+        pruneOld(seen.keys)
         Prefs.setString(KEY, JSONObject(seen.toMap() as Map<*, *>).toString())
         Prefs.setString(NEW_KEY, JSONArray(fresh.keys.toList()).toString())
     }
@@ -411,8 +428,8 @@ object ReadingStore {
         val raw = Prefs.getString(KEY) ?: return
         val o = JSONObject(raw)
         for (k in o.keys()) {
-            val v = o.getJSONObject(k)
-            visits[k] = HashMap<String, Int>().apply { for (f in v.keys()) put(f, v.getInt(f)) }
+            val v = o.optJSONObject(k) ?: continue
+            visits[k] = HashMap<String, Int>().apply { for (f in v.keys()) if (!v.isNull(f)) put(f, v.optInt(f)) }
         }
     }
 
@@ -433,6 +450,7 @@ object ReadingStore {
     }
 
     private fun save() {
+        pruneOld(visits.keys)
         val o = JSONObject()
         for ((k, v) in visits) o.put(k, JSONObject(v as Map<*, *>))
         Prefs.setString(KEY, o.toString())

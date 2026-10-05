@@ -39,14 +39,16 @@ fun decodeWin1255Percent(s: String): String {
 
 /**
  * Encode a string to windows-1255 bytes. Characters with no cp1255 mapping
- * become '?'. Needed to POST Hebrew form data the way rotter expects.
+ * (emoji, Arabic…) become an HTML numeric reference `&#N;` — what a browser
+ * submits for them in a cp1255 form — instead of a lost '?'.
  */
 fun encodeWin1255(s: String): IntArray {
     val out = ArrayList<Int>(s.length)
     var i = 0
     while (i < s.length) {
         val cp = s.codePointAt(i)
-        out.add(if (cp < 0x80) cp else REVERSE[cp] ?: 0x3F)
+        val b = if (cp < 0x80) cp else REVERSE[cp]
+        if (b != null) out.add(b) else "&#$cp;".forEach { out.add(it.code) }
         i += Character.charCount(cp)
     }
     return out.toIntArray()

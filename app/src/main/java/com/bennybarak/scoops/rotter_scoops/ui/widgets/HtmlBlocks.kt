@@ -200,8 +200,9 @@ object HtmlBlocks {
                 }
                 "iframe", "video" -> {
                     val src = e.attr("src").ifBlank { e.selectFirst("source")?.attr("src") ?: "" }
-                    if (src.isNotBlank()) {
-                        val abs = resolveUrl(baseUrl, src)
+                    val abs = if (src.isBlank()) "" else resolveUrl(baseUrl, src)
+                    // Only real https embeds; anything else (javascript:, data:…) is dropped.
+                    if (abs.startsWith("https://")) {
                         val cp = telegramChannelPost(abs)
                         if (cp == null) {
                             flush()
@@ -224,9 +225,12 @@ object HtmlBlocks {
                         out.add(TelegramBlock(cp))
                         return
                     }
-                    if (href.isNotBlank()) links.add(resolveUrl(baseUrl, href))
+                    // Only web links become tappable (no javascript:/intent: hrefs).
+                    val target = if (href.isBlank()) null else resolveUrl(baseUrl, href)
+                        .takeIf { it.startsWith("https://") || it.startsWith("http://") }
+                    if (target != null) links.add(target)
                     walk(e)
-                    if (href.isNotBlank()) links.removeAt(links.lastIndex)
+                    if (target != null) links.removeAt(links.lastIndex)
                 }
                 "b", "strong" -> {
                     bold++; walk(e); bold--

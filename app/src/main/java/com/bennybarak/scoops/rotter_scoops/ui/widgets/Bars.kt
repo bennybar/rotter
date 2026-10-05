@@ -112,7 +112,7 @@ fun BarTitle(text: String) {
 fun BackButton() {
     val nav = LocalNav.current
     IconButton(onClick = { nav.pop() }) {
-        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = com.bennybarak.scoops.rotter_scoops.ui.strings.back)
     }
 }
 

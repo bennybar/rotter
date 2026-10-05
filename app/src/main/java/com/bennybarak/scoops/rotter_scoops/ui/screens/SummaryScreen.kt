@@ -224,9 +224,10 @@ fun SummaryScreen(s: SummaryState) {
                 title = { BarTitle(l.aiSummary) },
                 actions = {
                     val text = s.summary
-                    if (text != null) {
+                    // Hidden while a (billed) request is running.
+                    if (text != null && !s.loading) {
                         Box {
-                            IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, null) }
+                            IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, l.moreOptions) }
                             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                                 DropdownMenuItem(text = { Text(l.copy) }, onClick = {
                                     menu = false

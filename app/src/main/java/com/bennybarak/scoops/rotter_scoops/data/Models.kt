@@ -54,9 +54,24 @@ class Thread(val id: String, val messages: List<Message>) {
     val root: Message? = messages.firstOrNull { it.isRoot }
     val comments: List<Message> = messages.filter { !it.isRoot }
 
-    // Built once: the flatten walk asks for every node's children.
-    private val children: Map<Int, List<Message>> =
-        comments.groupBy { it.parent ?: 0 }.mapValues { (_, v) -> v.sortedBy { it.num } }
+    // Built once: the flatten walk asks for every node's children. A comment
+    // whose parent isn't on the page (deleted, or a self/cyclic reference)
+    // hangs off the post instead of silently vanishing from the tree.
+    private val children: Map<Int, List<Message>> = run {
+        val nums = comments.map { it.num }.toHashSet()
+        fun declared(m: Message): Int {
+            val p = m.parent ?: 0
+            return if (p != 0 && (p == m.num || p !in nums)) 0 else p
+        }
+        val byParent = comments.groupBy(::declared)
+        val reachable = HashSet<Int>()
+        val queue = ArrayDeque(listOf(0))
+        while (queue.isNotEmpty()) {
+            for (c in byParent[queue.removeFirst()].orEmpty()) if (reachable.add(c.num)) queue.add(c.num)
+        }
+        comments.groupBy { if (it.num in reachable) declared(it) else 0 }
+            .mapValues { (_, v) -> v.sortedBy { it.num } }
+    }
 
     /** Children of a given message num, ordered by num. */
     fun childrenOf(parentNum: Int): List<Message> = children[parentNum] ?: emptyList()

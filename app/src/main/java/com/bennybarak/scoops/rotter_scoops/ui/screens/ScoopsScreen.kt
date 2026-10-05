@@ -106,6 +106,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.Shape
@@ -689,15 +691,14 @@ private fun SearchBar(c: ScoopsController) {
                     )
                 }
                 if (c.query.isNotEmpty()) {
-                    Icon(
-                        Icons.Rounded.Cancel,
-                        null,
-                        tint = p.muted,
-                        modifier = Modifier
-                            .size(20.dp)
+                    Box(
+                        Modifier
+                            .size(40.dp)
                             .clip(CircleShape)
-                            .combinedClickable(onClick = { c.query = "" }),
-                    )
+                            .combinedClickable(onClick = { c.query = "" })
+                            .semantics { contentDescription = l.cancel },
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(Icons.Rounded.Cancel, null, tint = p.muted, modifier = Modifier.size(20.dp)) }
                 }
             }
         },
@@ -1121,6 +1122,13 @@ private fun SwipeRow(
         }
         Box(
             Modifier
+                // The swipe actions, for TalkBack and other services.
+                .semantics {
+                    customActions = listOf(
+                        CustomAccessibilityAction(l.reply) { onReply(); true },
+                        CustomAccessibilityAction(if (read) l.markUnread else l.markRead) { onToggleRead(); true },
+                    )
+                }
                 // Absolute: `offset` mirrors x in RTL, which moved the card
                 // against the finger (drag deltas are always screen-left/right).
                 .absoluteOffset { IntOffset(x.roundToInt(), 0) }

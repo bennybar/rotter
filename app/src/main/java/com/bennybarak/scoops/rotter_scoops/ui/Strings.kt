@@ -3,6 +3,8 @@ package com.bennybarak.scoops.rotter_scoops.ui
 // Ported from the Flutter build's app_en.arb / app_he.arb.
 
 abstract class Strings {
+    abstract val back: String
+    abstract val moreOptions: String
     abstract val brandRotter: String
     abstract val newCommentsBadge: String
     abstract val colorTheme: String
@@ -172,6 +174,8 @@ abstract class Strings {
 }
 
 object StringsEn : Strings() {
+    override val back = "Back"
+    override val moreOptions = "More options"
     override val brandRotter = "Rotter"
     override val newCommentsBadge = "New comments"
     override val colorTheme = "Color theme"
@@ -352,6 +356,8 @@ object StringsEn : Strings() {
 }
 
 object StringsHe : Strings() {
+    override val back = "חזרה"
+    override val moreOptions = "אפשרויות נוספות"
     override val brandRotter = "רוטר"
     override val newCommentsBadge = "תגובות חדשות"
     override val colorTheme = "ערכת צבעים"

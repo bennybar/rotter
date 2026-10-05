@@ -35,15 +35,22 @@ class ScoopsApp : Application(), ImageLoaderFactory {
         RotterGated.appContext = this
         // Everything the first frame reads, loaded before it (as the Flutter
         // build did before runApp) — small, local reads.
-        SettingsController.load()
-        AuthService.load()
-        ReadStore.load()
-        MyRepliesStore.load()
-        SavedStore.saved.load()
-        SavedStore.followed.load()
-        ReadingStore.load()
-        DraftStore.load()
-        AIStore.load()
+        // A store whose saved data doesn't parse starts empty rather than
+        // crashing every launch.
+        fun guarded(name: String, load: () -> Unit) = try {
+            load()
+        } catch (e: Exception) {
+            android.util.Log.e("ScoopsApp", "couldn't load $name", e)
+        }
+        guarded("settings") { SettingsController.load() }
+        guarded("auth") { AuthService.load() }
+        guarded("read") { ReadStore.load() }
+        guarded("replies") { MyRepliesStore.load() }
+        guarded("saved") { SavedStore.saved.load() }
+        guarded("followed") { SavedStore.followed.load() }
+        guarded("reading") { ReadingStore.load() }
+        guarded("drafts") { DraftStore.load() }
+        guarded("ai") { AIStore.load() }
         // Card metadata from the last session, so cards paint complete at once.
         ScoopMetaCache.instance.load()
         MainScope().launch(Dispatchers.IO) { AIStore.loadKeyState() }

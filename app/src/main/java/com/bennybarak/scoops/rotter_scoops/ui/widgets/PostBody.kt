@@ -3,7 +3,9 @@ package com.bennybarak.scoops.rotter_scoops.ui.widgets
 import android.annotation.SuppressLint
 import android.graphics.Color as AndroidColor
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -258,7 +260,7 @@ fun ImageViewer(url: String, onDismiss: () -> Unit) {
                     .windowInsetsPadding(WindowInsets.statusBars)
                     .padding(8.dp),
             ) {
-                Icon(Icons.Rounded.Close, contentDescription = null, tint = Color.White, modifier = Modifier.size(30.dp))
+                Icon(Icons.Rounded.Close, contentDescription = com.bennybarak.scoops.rotter_scoops.ui.strings.close, tint = Color.White, modifier = Modifier.size(30.dp))
             }
         }
     }
@@ -295,7 +297,8 @@ private suspend fun fetchTelegram(channelPost: String): TelegramPost? {
             if (text.isEmpty() && photo == null) null else TelegramPost(channel, text, photo)
         }
     } catch (_: Exception) {
-        null
+        // Offline / timeout: no verdict about the post, so ask again next time.
+        return null
     }
     tgCache[channelPost] = Result.success(post)
     return post
@@ -488,10 +491,20 @@ private fun LazyEmbed(url: String) {
                         settings.domStorageEnabled = true
                         settings.mediaPlaybackRequiresUserGesture = false
                         webChromeClient = WebChromeClient()
-                        // Hosted in a page on rotter.net so YouTube sees a real
-                        // embedding origin (a bare player URL is refused).
+                        // The player may not take the page anywhere: links
+                        // leaving it open in the browser instead.
+                        webViewClient = object : WebViewClient() {
+                            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                                openExternal(ctx, request.url.toString())
+                                return true
+                            }
+                        }
+                        // Hosted in a wrapper page so YouTube sees an embedding
+                        // origin (a bare player URL is refused) — deliberately
+                        // NOT rotter.net: embeds are posted by any forum user and
+                        // must not run with rotter's origin and session cookie.
                         loadDataWithBaseURL(
-                            "https://rotter.net/",
+                            "https://embed.scoops.invalid/",
                             "<!doctype html><html><head><meta name=viewport content='width=device-width,initial-scale=1'>" +
                                 "<style>html,body{margin:0;height:100%;background:transparent}</style></head><body>" +
                                 "<iframe src=\"${src.replace("\"", "&quot;")}\" style=\"border:0;width:100%;height:100%\" " +

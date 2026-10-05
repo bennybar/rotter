@@ -24,9 +24,13 @@ object Prefs {
 
     fun init(context: Context) {
         val sp = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+        // One snapshot at launch, kept in step with every write: `sp.all`
+        // copies the whole map, which a read per lookup would do every time.
+        val mirror = HashMap<String, Any?>(sp.all)
         backend = object : KeyValue {
-            override fun get(key: String): Any? = sp.all[key]
+            override fun get(key: String): Any? = mirror[key]
             override fun put(key: String, value: Any?) {
+                if (value == null) mirror.remove(key) else mirror[key] = value
                 val e = sp.edit()
                 when (value) {
                     null -> e.remove(key)

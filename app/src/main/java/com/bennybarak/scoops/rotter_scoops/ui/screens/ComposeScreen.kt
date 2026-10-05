@@ -1,5 +1,6 @@
 package com.bennybarak.scoops.rotter_scoops.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -246,6 +247,9 @@ fun ComposeScreen(s: ComposeState, bottomInset: androidx.compose.ui.unit.Dp = 0.
     val accent = MaterialTheme.colorScheme.primary
     val title = if (s.isEdit) l.edit else if (s.isNewThread) l.compose else l.reply
 
+    // Leaving mid-send cancels our side but not the post itself — it would
+    // land with its draft kept, inviting a duplicate. Hold back until it ends.
+    BackHandler(enabled = s.busy) { }
     AppScaffold(
         bar = {
             AppBar(

@@ -1032,15 +1032,16 @@ private fun Content(
                     if (e.first) SortControl(c, onMarkAll)
                 }
                 is Item -> key(e.scoop.id) {
-                    val big = 24.dp
-                    val small = 6.dp
+                    // Each day's group: fully rounded outer corners, softer inner ones.
+                    val big = 28.dp
+                    val small = 16.dp
                     val shape = RoundedCornerShape(
                         topStart = if (e.first) big else small,
                         topEnd = if (e.first) big else small,
                         bottomStart = if (e.last) big else small,
                         bottomEnd = if (e.last) big else small,
                     )
-                    Box(Modifier.padding(start = 14.dp, end = 14.dp, bottom = if (e.last) 0.dp else 3.dp)) {
+                    Box(Modifier.padding(start = 14.dp, end = 14.dp, bottom = if (e.last) 0.dp else 8.dp)) {
                         SwipeRow(
                             scoop = e.scoop,
                             shape = shape,

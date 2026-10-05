@@ -63,6 +63,7 @@ import com.bennybarak.scoops.rotter_scoops.ui.NotoSansHebrew
 import com.bennybarak.scoops.rotter_scoops.ui.Route
 import com.bennybarak.scoops.rotter_scoops.ui.Snacks
 import com.bennybarak.scoops.rotter_scoops.ui.Strings
+import com.bennybarak.scoops.rotter_scoops.ui.StringsHe
 import com.bennybarak.scoops.rotter_scoops.ui.openLogin
 import com.bennybarak.scoops.rotter_scoops.ui.palette
 import com.bennybarak.scoops.rotter_scoops.ui.strings
@@ -299,6 +300,8 @@ fun ComposeScreen(s: ComposeState, bottomInset: androidx.compose.ui.unit.Dp = 0.
                     unfocusedIndicatorColor = Color.Transparent,
                     disabledIndicatorColor = Color.Transparent,
                 )
+                // The hints are always Hebrew: what is typed here is Hebrew content
+                // posted to rotter, whatever the interface language.
                 // Both replies and new threads carry a title on rotter (optional
                 // on replies — empty keeps rotter's "Re:…" default).
                 TextField(
@@ -306,7 +309,7 @@ fun ComposeScreen(s: ComposeState, bottomInset: androidx.compose.ui.unit.Dp = 0.
                     onValueChange = s::onSubject,
                     enabled = !s.busy,
                     singleLine = true,
-                    placeholder = { Text(l.subjectHint, style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.W800)) },
+                    placeholder = { Text(StringsHe.subjectHint, style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.W800)) },
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                     textStyle = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.W800, color = p.ink, fontFamily = NotoSansHebrew),
                     colors = plain,
@@ -318,7 +321,7 @@ fun ComposeScreen(s: ComposeState, bottomInset: androidx.compose.ui.unit.Dp = 0.
                     value = s.body,
                     onValueChange = s::onBody,
                     enabled = !s.busy,
-                    placeholder = { Text(if (s.isNewThread) l.bodyHint else l.composeHint, style = TextStyle(fontSize = 16.sp)) },
+                    placeholder = { Text(if (s.isNewThread) StringsHe.bodyHint else StringsHe.composeHint, style = TextStyle(fontSize = 16.sp)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                     textStyle = TextStyle(fontSize = 16.sp, lineHeight = 1.5.em, color = p.ink, fontFamily = NotoSansHebrew),
                     colors = plain,

@@ -125,6 +125,7 @@ import com.bennybarak.scoops.rotter_scoops.ui.Mine
 import com.bennybarak.scoops.rotter_scoops.ui.Navigator
 import com.bennybarak.scoops.rotter_scoops.ui.NotoSansHebrew
 import com.bennybarak.scoops.rotter_scoops.ui.ProfileRoute
+import com.bennybarak.scoops.rotter_scoops.ui.ScaledText
 import com.bennybarak.scoops.rotter_scoops.ui.SummaryRoute
 import com.bennybarak.scoops.rotter_scoops.ui.palette
 import com.bennybarak.scoops.rotter_scoops.ui.strings
@@ -579,7 +580,7 @@ fun ThreadScreen(s: ThreadState) {
                     )
                 },
             ) {
-                ThreadBody(s)
+                ScaledText(SettingsController.articleScale) { ThreadBody(s) }
             }
         }
         val resume = s.resumeTarget

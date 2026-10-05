@@ -154,6 +154,7 @@ import com.bennybarak.scoops.rotter_scoops.ui.LocalChromeDirection
 import com.bennybarak.scoops.rotter_scoops.ui.LocalLanguage
 import com.bennybarak.scoops.rotter_scoops.ui.LocalNav
 import com.bennybarak.scoops.rotter_scoops.ui.Mine
+import com.bennybarak.scoops.rotter_scoops.ui.ScaledText
 import com.bennybarak.scoops.rotter_scoops.ui.Snacks
 import com.bennybarak.scoops.rotter_scoops.ui.Strings
 import com.bennybarak.scoops.rotter_scoops.ui.ThreadRoute
@@ -557,6 +558,7 @@ fun ScoopsScreen(c: ScoopsController, bottomInset: androidx.compose.ui.unit.Dp) 
                     )
                 },
             ) {
+                ScaledText(SettingsController.listScale) {
                 Content(
                     c,
                     bottomInset = bottomInset,
@@ -579,6 +581,7 @@ fun ScoopsScreen(c: ScoopsController, bottomInset: androidx.compose.ui.unit.Dp) 
                         actionsFor = s
                     },
                 )
+                }
             }
         }
         val pend = c.pending

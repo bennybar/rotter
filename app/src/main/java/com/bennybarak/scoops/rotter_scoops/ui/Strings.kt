@@ -3,6 +3,8 @@ package com.bennybarak.scoops.rotter_scoops.ui
 // Ported from the Flutter build's app_en.arb / app_he.arb.
 
 abstract class Strings {
+    abstract val listTextSize: String
+    abstract val articleTextSize: String
     abstract val digestOlderLoaded: String
     abstract val tabDigest: String
     abstract val digestTitle: String
@@ -187,6 +189,8 @@ abstract class Strings {
 }
 
 object StringsEn : Strings() {
+    override val listTextSize = "List text size"
+    override val articleTextSize = "Article text size"
     override val digestOlderLoaded = "older scoops are loaded when you summarize"
     override val tabDigest = "Digest"
     override val digestTitle = "Scoops digest"
@@ -387,6 +391,8 @@ object StringsEn : Strings() {
 }
 
 object StringsHe : Strings() {
+    override val listTextSize = "גודל טקסט ברשימה"
+    override val articleTextSize = "גודל טקסט בכתבה"
     override val digestOlderLoaded = "סקופים ישנים יותר ייטענו בזמן הסיכום"
     override val tabDigest = "סיכום"
     override val digestTitle = "סיכום סקופים"

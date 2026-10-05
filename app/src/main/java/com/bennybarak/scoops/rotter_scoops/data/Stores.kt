@@ -66,7 +66,9 @@ object SettingsController {
     private const val MODE_KEY = "theme_mode"
     private const val ACCENT_KEY = "accent"
     private const val LOCALE_KEY = "locale" // 'system' | 'he' | 'en'
-    private const val SCALE_KEY = "text_scale"
+    private const val SCALE_KEY = "text_scale" // the old single setting: the default for both below
+    private const val LIST_SCALE_KEY = "list_text_scale"
+    private const val ARTICLE_SCALE_KEY = "article_text_scale"
     private const val SORT_KEY = "sort_mode" // 'lastComment' | 'postTime'
     private const val DENSITY_KEY = "thread_density"
     private const val PREDICTIVE_BACK_KEY = "predictive_back"
@@ -88,9 +90,15 @@ object SettingsController {
     @set:JvmName("assignLocale")
     var locale by mutableStateOf<String?>("he"); private set
 
-    /** In-app text size factor (1.0 = default, comfortable for Hebrew reading). */
-    @set:JvmName("assignTextScale")
-    var textScale by mutableDoubleStateOf(1.0); private set
+    /**
+     * Text size factors (1.0 = default) for the scoops list and for a thread's
+     * post and comments, applied on top of the device's own font size.
+     */
+    @set:JvmName("assignListScale")
+    var listScale by mutableDoubleStateOf(1.0); private set
+
+    @set:JvmName("assignArticleScale")
+    var articleScale by mutableDoubleStateOf(1.0); private set
 
     /** Scoops list ordering; defaults to rotter's own "last comment" order. */
     @set:JvmName("assignSortMode")
@@ -120,7 +128,9 @@ object SettingsController {
             "en" -> "en"
             else -> "he"
         }
-        Prefs.getDouble(SCALE_KEY)?.let { textScale = it.coerceIn(MIN_SCALE, MAX_SCALE) }
+        val legacy = Prefs.getDouble(SCALE_KEY)
+        (Prefs.getDouble(LIST_SCALE_KEY) ?: legacy)?.let { listScale = it.coerceIn(MIN_SCALE, MAX_SCALE) }
+        (Prefs.getDouble(ARTICLE_SCALE_KEY) ?: legacy)?.let { articleScale = it.coerceIn(MIN_SCALE, MAX_SCALE) }
         sortMode = if (Prefs.getString(SORT_KEY) == "postTime") SortMode.postTime else SortMode.lastComment
         Prefs.getDouble(DENSITY_KEY)?.let { threadDensity = it.coerceIn(MIN_DENSITY, MAX_DENSITY) }
         predictiveBack = Prefs.getBool(PREDICTIVE_BACK_KEY) ?: true
@@ -164,10 +174,16 @@ object SettingsController {
         Prefs.setString(LOCALE_KEY, l ?: "system")
     }
 
-    fun setTextScale(v: Double) {
+    fun setListScale(v: Double) {
         val clamped = v.coerceIn(MIN_SCALE, MAX_SCALE).round2()
-        textScale = clamped
-        Prefs.setDouble(SCALE_KEY, clamped)
+        listScale = clamped
+        Prefs.setDouble(LIST_SCALE_KEY, clamped)
+    }
+
+    fun setArticleScale(v: Double) {
+        val clamped = v.coerceIn(MIN_SCALE, MAX_SCALE).round2()
+        articleScale = clamped
+        Prefs.setDouble(ARTICLE_SCALE_KEY, clamped)
     }
 }
 

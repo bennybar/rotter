@@ -165,6 +165,17 @@ fun themeColors(accent: Accent, dark: Boolean): Pair<Palette, ColorScheme> {
     return p to base.copy(surface = p.surface, background = p.bg)
 }
 
+/**
+ * Text inside [content] scaled by [scale] on top of the device's font size
+ * (the list and article text-size settings; the chrome isn't scaled).
+ */
+@Composable
+fun ScaledText(scale: Double, content: @Composable () -> Unit) {
+    val density = LocalDensity.current
+    val scaled = remember(density, scale) { Density(density.density, density.fontScale * scale.toFloat()) }
+    CompositionLocalProvider(LocalDensity provides scaled, content = content)
+}
+
 @Composable
 fun ScoopsTheme(content: @Composable () -> Unit) {
     val s = SettingsController
@@ -179,11 +190,6 @@ fun ScoopsTheme(content: @Composable () -> Unit) {
     val lang = s.locale ?: Locale.getDefault().language.let { if (it == "iw" || it == "he") "he" else "en" }
     val str = if (lang == "he") StringsHe else StringsEn
     val direction = if (lang == "he") LayoutDirection.Rtl else LayoutDirection.Ltr
-    // The text-size setting is applied on top of the device's own scaling.
-    val density = LocalDensity.current
-    val scaled = remember(density, s.textScale) {
-        Density(density.density, density.fontScale * s.textScale.toFloat())
-    }
     MaterialTheme(colorScheme = scheme, typography = remember(p) { typography(p) }) {
         CompositionLocalProvider(
             LocalPalette provides p,
@@ -191,7 +197,6 @@ fun ScoopsTheme(content: @Composable () -> Unit) {
             LocalLanguage provides lang,
             LocalChromeDirection provides direction,
             LocalLayoutDirection provides direction,
-            LocalDensity provides scaled,
             LocalTextStyle provides BaseText,
             LocalContentColor provides p.body,
             content = content,

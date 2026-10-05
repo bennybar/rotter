@@ -139,16 +139,28 @@ fun SettingsScreen(bottomInset: Dp) {
                         Spacer(Modifier.height(14.dp))
                         AccentPicker(s.accent)
                         Spacer(Modifier.height(22.dp))
-                        RowLabel(Icons.Rounded.FormatSize, l.textSize)
+                        RowLabel(Icons.Rounded.FormatSize, l.listTextSize)
                         Spacer(Modifier.height(4.dp))
                         StepSlider(
-                            value = s.textScale,
+                            value = s.listScale,
                             min = SettingsController.MIN_SCALE,
                             max = SettingsController.MAX_SCALE,
                             divisions = 6,
                             start = { Text("א", style = TextStyle(fontSize = 14.sp, color = p.muted)) },
                             end = { Text("א", style = TextStyle(fontSize = 24.sp, color = p.muted)) },
-                            onChange = s::setTextScale,
+                            onChange = s::setListScale,
+                        )
+                        Spacer(Modifier.height(18.dp))
+                        RowLabel(Icons.Rounded.FormatSize, l.articleTextSize)
+                        Spacer(Modifier.height(4.dp))
+                        StepSlider(
+                            value = s.articleScale,
+                            min = SettingsController.MIN_SCALE,
+                            max = SettingsController.MAX_SCALE,
+                            divisions = 6,
+                            start = { Text("א", style = TextStyle(fontSize = 14.sp, color = p.muted)) },
+                            end = { Text("א", style = TextStyle(fontSize = 24.sp, color = p.muted)) },
+                            onChange = s::setArticleScale,
                         )
                         Spacer(Modifier.height(18.dp))
                         RowLabel(Icons.Rounded.DensityMedium, l.threadSpacing)

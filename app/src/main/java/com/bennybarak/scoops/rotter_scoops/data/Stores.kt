@@ -531,7 +531,10 @@ object AIStore {
      * Editable rather than hardcoded: model identifiers change often, and a
      * wrong one should be a line of text to correct, not a rebuild.
      */
-    const val DEFAULT_MODEL = "gpt-5.6-luna"
+    const val DEFAULT_MODEL = "gpt-5.4-mini"
+
+    /** Earlier defaults: a stored one is moved to the current default. */
+    private val OLD_DEFAULT_MODELS = setOf("gpt-5.6-luna")
 
     /** The API root — configurable for OpenAI-compatible gateways. */
     const val DEFAULT_BASE_URL = "https://api.openai.com/v1"
@@ -559,7 +562,7 @@ object AIStore {
 
     fun load() {
         enabled = Prefs.getBool(ENABLED_KEY) ?: false
-        model = Prefs.getString(MODEL_KEY) ?: DEFAULT_MODEL
+        model = Prefs.getString(MODEL_KEY)?.takeIf { it !in OLD_DEFAULT_MODELS } ?: DEFAULT_MODEL
         baseUrl = Prefs.getString(BASE_URL_KEY) ?: DEFAULT_BASE_URL
         language = SummaryLanguage.entries.firstOrNull { it.name == Prefs.getString(LANGUAGE_KEY) }
             ?: SummaryLanguage.followApp

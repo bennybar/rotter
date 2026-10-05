@@ -31,6 +31,16 @@ class ThreadSummarizer(
 ) {
     companion object {
         /**
+         * The model sends nothing until it has finished writing, which for a
+         * digest of many scoops takes well over OkHttp's default 10s read
+         * timeout — that cut every larger request off. Wait up to 3 minutes.
+         */
+        private val aiClient = Http.client.newBuilder()
+            .readTimeout(180, TimeUnit.SECONDS)
+            .callTimeout(180, TimeUnit.SECONDS)
+            .build()
+
+        /**
          * Threads run to hundreds of comments; the transcript is capped and the
          * OLDEST comments kept — they carry the substance, later ones tend to argue.
          */
@@ -114,17 +124,30 @@ Do not invent details that are not in the posts. rotter scoops are often unverif
         complete(digestPrompt(language, window), digestTranscript(items))
 
     private suspend fun complete(system: String, user: String): String = withContext(Dispatchers.IO) {
+        try {
+            request(system, user, lowEffort = true)
+        } catch (e: SummaryException) {
+            // An endpoint or model that doesn't take `reasoning_effort` says so
+            // in its error: ask once more without it.
+            if (!e.message.contains("reasoning", ignoreCase = true)) throw e
+            request(system, user, lowEffort = false)
+        }
+    }
+
+    private suspend fun request(system: String, user: String, lowEffort: Boolean): String {
         val root = baseUrl.trim().replaceFirst(Regex("/+$"), "")
         val url = "$root/chat/completions"
         val payload = JSONObject()
             .put("model", model)
-            // No `temperature`: this model rejects it.
+            // No `temperature`: reasoning models reject it.
             .put(
                 "messages",
                 JSONArray()
                     .put(JSONObject().put("role", "system").put("content", system))
                     .put(JSONObject().put("role", "user").put("content", user)),
             )
+        // A summary needs little deliberation; this is most of the latency.
+        if (lowEffort) payload.put("reasoning_effort", "low")
         val req = try {
             Request.Builder()
                 .url(url)
@@ -134,9 +157,7 @@ Do not invent details that are not in the posts. rotter scoops are often unverif
         } catch (_: IllegalArgumentException) {
             throw SummaryException("Invalid endpoint")
         }
-        val call = Http.client.newCall(req)
-        call.timeout().timeout(60, TimeUnit.SECONDS)
-        call.await().use { res ->
+        aiClient.newCall(req).await().use { res ->
             val json = try {
                 JSONObject(res.body.string())
             } catch (_: Exception) {
@@ -151,7 +172,7 @@ Do not invent details that are not in the posts. rotter scoops are often unverif
             val text = json?.optJSONArray("choices")?.optJSONObject(0)
                 ?.optJSONObject("message")?.opt("content") as? String
             if (text.isNullOrBlank()) throw SummaryException("")
-            text.trim()
+            return text.trim()
         }
     }
 }

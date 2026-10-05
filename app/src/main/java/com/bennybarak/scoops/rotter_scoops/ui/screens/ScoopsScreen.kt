@@ -8,6 +8,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -1096,14 +1098,17 @@ private fun SwipeRow(
     val accent = MaterialTheme.colorScheme.primary
     val read = ReadStore.isRead(scoop.id)
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
-    val offset = remember { Animatable(0f) }
+    // The drag position, updated in place on every move (not from coroutines,
+    // which could land after the release and cancel the return animation).
+    var x by remember { mutableFloatStateOf(0f) }
+    var settle by remember { mutableStateOf<Job?>(null) }
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val width = with(density) { maxWidth.toPx() }
         // Positive = toward the reading direction's end (start→end = reply).
-        val toEnd = if (rtl) -offset.value else offset.value
-        if (offset.value != 0f) {
+        val toEnd = if (rtl) -x else x
+        if (x != 0f) {
             val replying = toEnd > 0
             SwipeBackground(
                 color = if (replying) accent else if (read) p.muted else Mine,
@@ -1118,22 +1123,25 @@ private fun SwipeRow(
             Modifier
                 // Absolute: `offset` mirrors x in RTL, which moved the card
                 // against the finger (drag deltas are always screen-left/right).
-                .absoluteOffset { IntOffset(offset.value.roundToInt(), 0) }
+                .absoluteOffset { IntOffset(x.roundToInt(), 0) }
                 .draggable(
                     orientation = Orientation.Horizontal,
-                    state = rememberDraggableState { d -> scope.launch { offset.snapTo(offset.value + d) } },
+                    state = rememberDraggableState { d -> x += d },
+                    onDragStarted = { settle?.cancel() },
                     onDragStopped = { velocity ->
-                        val dirToEnd = if (rtl) -offset.value else offset.value
+                        val dirToEnd = if (rtl) -x else x
                         val v = if (rtl) -velocity else velocity
                         val flungToEnd = v > 700 * density.density && dirToEnd > 0
                         val flungToStart = v < -700 * density.density && dirToEnd < 0
-                        val past = abs(offset.value) > width * 0.4f
-                        if (past || flungToEnd || flungToStart) {
-                            val target = if (offset.value > 0) width else -width
-                            offset.animateTo(target, tween(200))
-                            if (dirToEnd > 0) onReply() else onToggleRead()
+                        val past = abs(x) > width * 0.4f
+                        settle = scope.launch {
+                            if (past || flungToEnd || flungToStart) {
+                                // Slide out, act, then come back: the card is never removed.
+                                animate(x, if (x > 0) width else -width, animationSpec = tween(200)) { value, _ -> x = value }
+                                if (dirToEnd > 0) onReply() else onToggleRead()
+                            }
+                            animate(x, 0f, animationSpec = tween(200)) { value, _ -> x = value }
                         }
-                        offset.animateTo(0f, tween(200))
                     },
                 ),
         ) {

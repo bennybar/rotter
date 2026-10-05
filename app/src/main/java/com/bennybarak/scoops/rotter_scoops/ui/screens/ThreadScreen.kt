@@ -80,6 +80,9 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.drawBehind
@@ -762,49 +765,89 @@ private fun Fabs(s: ThreadState) {
                 }
             }
         }
-        // Everything that moves through the thread, in ONE floating toolbar row
-        // (it used to be a vertical stack of buttons over the comments).
-        Surface(color = p.surface, shadowElevation = 6.dp, shape = RoundedCornerShape(999.dp)) {
-            Row(Modifier.padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        // Everything that moves through the thread, in ONE floating toolbar:
+        // an inverse-coloured pill (dark on a light theme, light on a dark one)
+        // so it reads on any comment colour — the "Tonal Cards" design.
+        val bar = p.ink
+        val onBar = p.bg
+        Surface(color = bar, contentColor = onBar, shadowElevation = 8.dp, shape = CircleShape) {
+            Row(
+                Modifier.padding(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 if (news.isNotEmpty()) {
-                    IconButton(onClick = { prevNew?.let(s::jumpClearingReturn) }, enabled = prevNew != null) {
-                        Icon(Icons.Rounded.KeyboardArrowUp, l.previousNew)
-                    }
-                    Text(
-                        if (newIndex >= 0) l.newOfCount(newIndex + 1, news.size) else l.newRepliesCount(news.size),
-                        style = TextStyle(fontSize = 12.5.sp, fontWeight = FontWeight.W700, color = accent),
-                    )
-                    IconButton(onClick = { nextNew?.let(s::jumpClearingReturn) }, enabled = nextNew != null) {
-                        Icon(Icons.Rounded.KeyboardArrowDown, l.nextNew)
-                    }
-                    Box(Modifier.padding(horizontal = 4.dp).width(1.dp).height(24.dp).background(p.field))
-                }
-                if (myNum != null) {
-                    IconButton(onClick = { s.jumpClearingReturn(myNum) }) {
-                        Box(Modifier.size(36.dp).background(Mine, CircleShape), contentAlignment = Alignment.Center) {
-                            Icon(Icons.AutoMirrored.Rounded.Reply, l.myReply, tint = Color.White, modifier = Modifier.size(20.dp))
+                    // The new-comments stepper, on its own tonal segment.
+                    Row(
+                        Modifier
+                            .height(44.dp)
+                            .background(onBar.copy(alpha = 0.12f), CircleShape)
+                            .padding(horizontal = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        ToolbarIcon(Icons.Rounded.KeyboardArrowUp, l.previousNew, prevNew != null) {
+                            prevNew?.let(s::jumpClearingReturn)
+                        }
+                        Text(
+                            if (newIndex >= 0) l.newOfCount(newIndex + 1, news.size) else l.newRepliesCount(news.size),
+                            style = TextStyle(fontSize = 12.5.sp, fontWeight = FontWeight.W800, color = onBar),
+                            maxLines = 1,
+                        )
+                        ToolbarIcon(Icons.Rounded.KeyboardArrowDown, l.nextNew, nextNew != null) {
+                            nextNew?.let(s::jumpClearingReturn)
                         }
                     }
                 }
-                // Disabled at the last discussion rather than wrapping to the top.
-                IconButton(onClick = { next?.let(s::jumpClearingReturn) }, enabled = next != null) {
-                    Icon(Icons.Rounded.KeyboardArrowDown, l.nextComment)
-                }
-                IconButton(onClick = { s.jumpClearingReturn(newest) }) {
+                // Next discussion: the primary action, an accent rounded square.
+                // Dimmed at the last discussion rather than wrapping to the top.
+                Box(
+                    Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(accent.copy(alpha = if (next == null) 0.35f else 1f))
+                        .clickable(enabled = next != null) { next?.let(s::jumpClearingReturn) }
+                        .semantics { contentDescription = l.nextComment },
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.Rounded.KeyboardArrowDown, null, tint = Color.White, modifier = Modifier.size(22.dp)) }
+                ToolbarIcon(Icons.Rounded.South, l.jumpToNewest, true) { s.jumpClearingReturn(newest) }
+                if (myNum != null) {
                     Box(
-                        Modifier.size(36.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                        Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(Mine)
+                            .clickable { s.jumpClearingReturn(myNum) }
+                            .semantics { contentDescription = l.myReply },
                         contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            Icons.Rounded.South,
-                            l.jumpToNewest,
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
+                    ) { Icon(Icons.AutoMirrored.Rounded.Reply, null, tint = Color.White, modifier = Modifier.size(22.dp)) }
                 }
             }
         }
+    }
+}
+
+/** A 44dp round icon button in the thread toolbar. */
+@Composable
+private fun ToolbarIcon(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    description: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Box(
+        Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .clickable(enabled = enabled, onClick = onClick)
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            icon,
+            null,
+            tint = LocalContentColor.current.copy(alpha = if (enabled) 1f else 0.38f),
+            modifier = Modifier.size(22.dp),
+        )
     }
 }
 

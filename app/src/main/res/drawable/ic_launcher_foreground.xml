@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "Spark R": a rounded-stroke R on an amber gradient card, a spark breaking
+     out of it, and an indigo card tilted 12° behind (in RunnerSidekick's style). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group android:pivotX="54" android:pivotY="54" android:scaleX="0.9" android:scaleY="0.9">
+        <group android:pivotX="60" android:pivotY="46" android:rotation="12">
+            <path
+                android:fillColor="#5E6BFF"
+                android:pathData="M48,22h24a13,13 0 0 1 13,13v20a13,13 0 0 1 -13,13h-24a13,13 0 0 1 -13,-13v-20a13,13 0 0 1 13,-13z" />
+        </group>
+        <path android:pathData="M46,34h16a16,16 0 0 1 16,16v16a16,16 0 0 1 -16,16h-16a16,16 0 0 1 -16,-16v-16a16,16 0 0 1 16,-16z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="26"
+                    android:startY="30"
+                    android:endX="80"
+                    android:endY="86"
+                    android:startColor="#FFB347"
+                    android:endColor="#E8650A" />
+            </aapt:attr>
+        </path>
+        <path
+            android:pathData="M45,74V43h11a8.5,8.5 0 0 1 0,17H45M54.5,60L63,74"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="6"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:fillColor="#FFE2B8"
+            android:pathData="M67,32.5Q68,39 74.5,40Q68,41 67,47.5Q66,41 59.5,40Q66,39 67,32.5Z" />
+    </group>
+</vector>

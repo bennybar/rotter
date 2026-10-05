@@ -5,7 +5,7 @@
 #   ./android_web_install.zsh            # build the signed release APK, then serve it
 #   ./android_web_install.zsh --no-build # serve the APK already built
 #
-# Builds `flutter build apk --release` (signed with the key in android/key.properties),
+# Builds `./gradlew :app:assembleRelease` (signed with the key in key.properties),
 # starts a local static server, fronts it with an HTTPS quick-tunnel, and prints a link.
 # Open it on the phone, tap Install, and let the browser install the APK. Ctrl-C to stop;
 # the tunnel and the server are torn down on exit.
@@ -19,7 +19,7 @@
 set -e
 
 PROJECT="${0:A:h}"
-APK="$PROJECT/build/app/outputs/flutter-apk/app-release.apk"
+APK="$PROJECT/app/build/outputs/apk/release/app-release.apk"
 SERVE="$(mktemp -d)"
 PORT=8791
 TITLE="Rotter Scoops"
@@ -28,11 +28,11 @@ command -v cloudflared >/dev/null || { echo "✗ cloudflared missing: brew insta
 
 if [[ "$1" != "--no-build" ]]; then
   echo "==> building signed release APK"
-  (cd "$PROJECT" && flutter build apk --release)
+  (cd "$PROJECT" && ./gradlew :app:assembleRelease)
 fi
 [[ -f "$APK" ]] || { echo "✗ no APK at $APK — run without --no-build" >&2; exit 1; }
 
-VERSION=$(grep -m1 '^version:' "$PROJECT/pubspec.yaml" | awk '{print $2}')
+VERSION=$(grep -m1 'versionName' "$PROJECT/app/build.gradle.kts" | sed -E 's/.*"(.*)".*/\1/')
 NAME="RotterScoops-$VERSION.apk"
 SIZE=$(( $(stat -f %z "$APK") / 1048576 ))
 cp "$APK" "$SERVE/$NAME"

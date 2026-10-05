@@ -1,16 +1,15 @@
-# rotter_scoops
+# Rotter Scoops (Android, Kotlin)
 
-A new Flutter project.
+A modern client for rotter.net scoops — native Kotlin + Jetpack Compose.
+This replaced the Flutter app (last Flutter commit is tagged `flutter-final`).
 
-## Getting Started
+- Package `com.bennybarak.scoops.rotter_scoops`, signed with the same upload key,
+  so it installs as an update over the Flutter build and keeps the user's data
+  (settings, read state, saved/followed scoops, drafts, saved sign-in, AI key).
+- Signing: put `key.properties` + the `.jks` in the project root (both git-ignored).
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```sh
+./gradlew :app:testDebugUnitTest     # parser / cache / summary tests (real captured pages)
+./gradlew :app:assembleRelease       # signed APK → app/build/outputs/apk/release/
+./android_web_install.zsh            # build + serve the APK to a phone over a tunnel
+```

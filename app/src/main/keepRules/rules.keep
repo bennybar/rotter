@@ -1,0 +1,4 @@
+# The gated-request bridge is called from page JavaScript by name.
+-keepclassmembers class com.bennybarak.scoops.rotter_scoops.net.RotterGated$Bridge {
+   @android.webkit.JavascriptInterface public *;
+}

@@ -24,6 +24,20 @@ object RotterService {
 
     // ---- Post list (RSS) ----------------------------------------------------
 
+    /**
+     * The feed request the app starts at launch, before any UI exists; the
+     * list's first load takes it instead of starting its own.
+     */
+    @Volatile
+    var launchFeed: kotlinx.coroutines.Deferred<List<Scoop>>? = null
+
+    /** The launch-time request if one is waiting, else a fresh fetch. */
+    suspend fun fetchScoopsPreferringLaunch(): List<Scoop> {
+        val early = launchFeed
+        launchFeed = null
+        return early?.await() ?: fetchScoops()
+    }
+
     suspend fun fetchScoops(): List<Scoop> {
         val bytes = getBytes(RSS_URL)
         return withContext(Dispatchers.Default) { parseRss(decodeWin1255(bytes)) }

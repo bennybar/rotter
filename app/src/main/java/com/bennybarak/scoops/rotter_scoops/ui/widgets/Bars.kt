@@ -156,6 +156,7 @@ fun ScrollHidingScaffold(
     modifier: Modifier = Modifier,
     pinned: Boolean = false,
     floatingActions: (@Composable () -> Unit)? = null,
+    floatingAlignment: Alignment = Alignment.BottomEnd,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val p = palette
@@ -207,7 +208,7 @@ fun ScrollHidingScaffold(
         if (floatingActions != null) {
             Box(
                 Modifier
-                    .align(Alignment.BottomEnd)
+                    .align(floatingAlignment)
                     .windowInsetsPadding(WindowInsets.navigationBars)
                     .padding(16.dp),
             ) { floatingActions() }

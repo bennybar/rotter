@@ -5,7 +5,9 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import okhttp3.Call
 import okhttp3.Callback
+import okhttp3.ConnectionPool
 import okhttp3.Dispatcher
+import okhttp3.Protocol
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -27,8 +29,15 @@ object Http {
      * Shared client. The card-metadata backfill runs 20 requests at once against
      * one host, so the per-host cap (OkHttp defaults to 5) must be above that or
      * the queue silently serializes.
+     *
+     * HTTP/1.1, not HTTP/2: rotter answers the streams of one HTTP/2 connection
+     * roughly one at a time — the whole feed's pages took 3.6–4.2s that way
+     * against 1.7–1.9s over parallel HTTP/1.1 connections (measured). The pool
+     * keeps those connections warm for the next refresh.
      */
     val client: OkHttpClient = OkHttpClient.Builder()
+        .protocols(listOf(Protocol.HTTP_1_1))
+        .connectionPool(ConnectionPool(24, 5, TimeUnit.MINUTES))
         .dispatcher(Dispatcher().apply {
             maxRequests = 64
             maxRequestsPerHost = 32

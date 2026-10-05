@@ -81,6 +81,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -524,6 +525,7 @@ fun ThreadScreen(s: ThreadState) {
         atTop = { !s.listState.canScrollBackward },
         bar = { if (s.searching) ThreadSearchBar(s) else ThreadTitleBar(s) },
         floatingActions = { Fabs(s) },
+        floatingAlignment = Alignment.BottomCenter,
     ) {
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
             val pull = rememberPullToRefreshState()
@@ -723,7 +725,7 @@ private fun Fabs(s: ThreadState) {
     val prevNew = if (lastNew == null) null else news.lastOrNull { it < lastNew }
     val nextNew = if (lastNew == null) news.firstOrNull() else news.firstOrNull { it > lastNew }
 
-    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (!s.hintDismissed) {
             // Not a Surface: that swallows every touch, so the comments under the
             // card couldn't be scrolled. Only the close button takes input.
@@ -760,9 +762,11 @@ private fun Fabs(s: ThreadState) {
                 }
             }
         }
-        if (news.isNotEmpty()) {
-            Surface(color = p.surface, shadowElevation = 3.dp, shape = RoundedCornerShape(999.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+        // Everything that moves through the thread, in ONE floating toolbar row
+        // (it used to be a vertical stack of buttons over the comments).
+        Surface(color = p.surface, shadowElevation = 6.dp, shape = RoundedCornerShape(999.dp)) {
+            Row(Modifier.padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (news.isNotEmpty()) {
                     IconButton(onClick = { prevNew?.let(s::jumpClearingReturn) }, enabled = prevNew != null) {
                         Icon(Icons.Rounded.KeyboardArrowUp, l.previousNew)
                     }
@@ -773,24 +777,33 @@ private fun Fabs(s: ThreadState) {
                     IconButton(onClick = { nextNew?.let(s::jumpClearingReturn) }, enabled = nextNew != null) {
                         Icon(Icons.Rounded.KeyboardArrowDown, l.nextNew)
                     }
+                    Box(Modifier.padding(horizontal = 4.dp).width(1.dp).height(24.dp).background(p.field))
+                }
+                if (myNum != null) {
+                    IconButton(onClick = { s.jumpClearingReturn(myNum) }) {
+                        Box(Modifier.size(36.dp).background(Mine, CircleShape), contentAlignment = Alignment.Center) {
+                            Icon(Icons.AutoMirrored.Rounded.Reply, l.myReply, tint = Color.White, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                }
+                // Disabled at the last discussion rather than wrapping to the top.
+                IconButton(onClick = { next?.let(s::jumpClearingReturn) }, enabled = next != null) {
+                    Icon(Icons.Rounded.KeyboardArrowDown, l.nextComment)
+                }
+                IconButton(onClick = { s.jumpClearingReturn(newest) }) {
+                    Box(
+                        Modifier.size(36.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Rounded.South,
+                            l.jumpToNewest,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
                 }
             }
-        }
-        if (myNum != null) {
-            SmallFloatingActionButton(
-                onClick = { s.jumpClearingReturn(myNum) },
-                containerColor = Mine,
-                contentColor = Color.White,
-            ) { Icon(Icons.AutoMirrored.Rounded.Reply, l.myReply) }
-        }
-        // Disabled at the last discussion rather than wrapping to the top.
-        SmallFloatingActionButton(
-            onClick = { next?.let(s::jumpClearingReturn) },
-            containerColor = if (next == null) p.field else FloatingActionButtonDefaults.containerColor,
-            contentColor = if (next == null) p.muted else MaterialTheme.colorScheme.onPrimaryContainer,
-        ) { Icon(Icons.Rounded.KeyboardArrowDown, l.nextComment) }
-        SmallFloatingActionButton(onClick = { s.jumpClearingReturn(newest) }) {
-            Icon(Icons.Rounded.South, l.jumpToNewest)
         }
     }
 }
@@ -859,7 +872,7 @@ private fun ThreadBody(s: ThreadState) {
         // clearance so the FAB stack doesn't cover the last post.
         contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp + BarHeight, bottom = 160.dp),
     ) {
-        item(key = "root") {
+        item(key = "root", contentType = "root") {
             RootCard(
                 scoop = s.scoop,
                 root = root,
@@ -870,7 +883,7 @@ private fun ThreadBody(s: ThreadState) {
                 onOpenUser = if (root == null) null else ({ s.openUserProfile(nav, root) }),
             )
         }
-        itemsIndexed(flat, key = { _, r -> r.msg.num }) { _, row ->
+        itemsIndexed(flat, key = { _, r -> r.msg.num }, contentType = { _, _ -> "comment" }) { _, row ->
             CommentTile(
                 row = row,
                 isOp = root != null && row.msg.author == root.author,
@@ -912,7 +925,7 @@ private fun RootCard(
     Column(
         Modifier
             .padding(bottom = 14.dp)
-            .dropShadowCompat(shape, Color.Black.copy(alpha = 0.05f), 18.dp, 6.dp)
+            .shadow(3.dp, shape, ambientColor = Color.Black.copy(alpha = 0.25f), spotColor = Color.Black.copy(alpha = 0.25f))
             .background(p.surface, shape)
             .padding(start = 14.dp, end = 14.dp, top = 16.dp, bottom = 14.dp),
     ) {
@@ -1071,7 +1084,8 @@ private fun CommentTile(
         Modifier
             .padding(start = (clamped * 12).dp, bottom = (8 * density).dp)
             .fillMaxWidth()
-            .dropShadowCompat(shape, Color.Black.copy(alpha = 0.05f), 6.dp, 2.dp)
+            // A hardware (outline) shadow: a blurred one per comment cost frames while scrolling.
+            .shadow(1.dp, shape, ambientColor = Color.Black.copy(alpha = 0.3f), spotColor = Color.Black.copy(alpha = 0.3f))
             .clip(shape)
             .background(background)
             .drawBehind {

@@ -104,6 +104,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -280,7 +281,7 @@ class ScoopsController(private val scope: CoroutineScope) {
     private suspend fun performLoad(stage: Boolean = false) {
         feedLoading = true
         try {
-            val scoops = RotterService.fetchScoops()
+            val scoops = RotterService.fetchScoopsPreferringLaunch()
             didFetch = true
             if (stage && loaded.isNotEmpty()) {
                 refreshFailed = false
@@ -1016,7 +1017,8 @@ private fun ScoopCard(scoop: Scoop, read: Boolean, onOpen: () -> Unit, onLongPre
     Box(
         Modifier
             .alpha(alpha)
-            .dropShadowCompat(shape, Color.Black.copy(alpha = if (read) 0.02f else 0.05f), 16.dp, 6.dp)
+            // A hardware (outline) shadow: a blurred one per card cost frames while scrolling.
+            .shadow(if (read) 1.dp else 3.dp, shape, ambientColor = Color.Black.copy(alpha = 0.25f), spotColor = Color.Black.copy(alpha = 0.25f))
             .clip(shape)
             .background(p.surface)
             .drawWithContent {

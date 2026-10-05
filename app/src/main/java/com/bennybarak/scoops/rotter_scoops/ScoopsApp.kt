@@ -22,6 +22,8 @@ import com.bennybarak.scoops.rotter_scoops.net.Http
 import com.bennybarak.scoops.rotter_scoops.net.RotterGated
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.async
+import com.bennybarak.scoops.rotter_scoops.net.RotterService
 import kotlinx.coroutines.launch
 
 class ScoopsApp : Application(), ImageLoaderFactory {
@@ -45,6 +47,9 @@ class ScoopsApp : Application(), ImageLoaderFactory {
         // Card metadata from the last session, so cards paint complete at once.
         ScoopMetaCache.instance.load()
         MainScope().launch(Dispatchers.IO) { AIStore.loadKeyState() }
+        // Put the feed request on the wire now; the list picks it up when it
+        // first loads, instead of starting it after the first frame.
+        RotterService.launchFeed = MainScope().async(Dispatchers.IO) { RotterService.fetchScoops() }
     }
 
     // Images share the app's HTTP client (connection reuse) and play GIFs.

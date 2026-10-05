@@ -12,7 +12,6 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -53,6 +52,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Constraints
+import kotlin.math.roundToInt
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -165,50 +167,46 @@ private fun RichText(b: TextBlock, fontSize: Float) {
 private fun InlineImage(url: String) {
     val p = palette
     var viewing by remember { mutableStateOf(false) }
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val maxW = maxWidth
-        val maxPx = with(LocalDensity.current) { maxW.roundToPx() }
-        val context = LocalContext.current
-        val painter = rememberAsyncImagePainter(
-            remember(url, maxPx) {
-                ImageRequest.Builder(context)
-                    .data(url)
-                    .size(Size(Dimension(maxPx), Dimension.Undefined))
-                    .build()
-            },
-        )
-        when (val s = painter.state) {
-            is AsyncImagePainter.State.Success -> {
-                val intrinsic = s.painter.intrinsicSize
-                // Image pixels map 1:1 to dp (as Flutter's logical pixels did),
-                // capped at the column width.
-                val w = minOf(intrinsic.width, maxW.value).dp
-                val h = w * (intrinsic.height / intrinsic.width)
-                Image(
-                    painter,
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .width(w)
-                        .height(h)
-                        .clickable { viewing = true },
-                )
+    val context = LocalContext.current
+    // Decode no wider than the screen. Sized from the configuration rather
+    // than measured constraints: a BoxWithConstraints here subcomposed every
+    // image in every comment while scrolling.
+    val maxPx = with(LocalDensity.current) { LocalConfiguration.current.screenWidthDp.dp.roundToPx() }
+    val painter = rememberAsyncImagePainter(
+        remember(url, maxPx) {
+            ImageRequest.Builder(context)
+                .data(url)
+                .size(Size(Dimension(maxPx), Dimension.Undefined))
+                .build()
+        },
+    )
+    val state = painter.state
+    if (state is AsyncImagePainter.State.Error) return
+    val loaded = state as? AsyncImagePainter.State.Success
+    Image(
+        painter,
+        contentDescription = null,
+        contentScale = ContentScale.Fit,
+        modifier = Modifier
+            .layout { measurable, constraints ->
+                val (w, h) = if (loaded != null) {
+                    val i = loaded.painter.intrinsicSize
+                    // Image pixels map 1:1 to dp (as Flutter's logical pixels
+                    // did), capped at the column width.
+                    val wPx = minOf(i.width.dp.roundToPx(), constraints.maxWidth)
+                    wPx to (wPx * i.height / i.width).roundToInt()
+                } else {
+                    // A modest placeholder while it loads.
+                    constraints.maxWidth to 180.dp.roundToPx()
+                }
+                val placeable = measurable.measure(Constraints.fixed(w, h))
+                layout(w, h) { placeable.place(0, 0) }
             }
-            is AsyncImagePainter.State.Error -> Unit
-            else -> {
-                // Draw the painter (that's what starts the load) at a modest
-                // placeholder height.
-                Image(
-                    painter,
-                    contentDescription = null,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(180.dp)
-                        .background(p.muted.copy(alpha = 0.08f)),
-                )
-            }
-        }
-    }
+            .then(
+                if (loaded != null) Modifier.clickable { viewing = true }
+                else Modifier.background(p.muted.copy(alpha = 0.08f)),
+            ),
+    )
     if (viewing) ImageViewer(url) { viewing = false }
 }
 

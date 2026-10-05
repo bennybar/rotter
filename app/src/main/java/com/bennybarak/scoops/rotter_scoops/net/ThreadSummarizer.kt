@@ -13,6 +13,9 @@ import java.util.concurrent.TimeUnit
 
 class SummaryException(override val message: String) : Exception(message)
 
+/** One scoop for the digest: its posting time (HH:MM), headline and main post. */
+class DigestItem(val time: String, val title: String, val bodyHtml: String?)
+
 /**
  * Summarizes a thread (original post + comments) with an OpenAI-compatible
  * chat-completions model. Entirely opt-in: it only runs when the user turned it
@@ -57,6 +60,34 @@ Do not invent details that are not in the text. rotter posts are often unverifie
         private fun plain(html: String) =
             Jsoup.parseBodyFragment(html).body().wholeText().replace(ws, " ").trim()
 
+        private fun digestPrompt(language: String, window: String) = """
+You summarize the latest scoops (breaking-news posts) from rotter.net, an Israeli news forum. You will be given the main posts published in the last $window, newest first, each with its posting time, headline and text. Comments are not included.
+
+Write the summary in $language.
+
+Format it as Markdown. Group related scoops into topics, at most six. Give each topic a `## ` heading in $language, then `-` bullets, one per distinct development, newest first, starting with its posting time (HH:MM). Use `**bold**` for the key fact of each bullet. Merge scoops that report the same thing. Do not use tables, code blocks or other headings. Keep the whole digest under 400 words.
+
+Do not invent details that are not in the posts. rotter scoops are often unverified first reports — describe them as reports, and say so plainly when posts contradict each other.""".removePrefix("\n")
+
+        /**
+         * The transcript budget, shared out evenly so every headline makes it
+         * in: a few scoops get up to 700 characters of post each, a day's worth
+         * get less (never under 150).
+         */
+        private const val MAX_DIGEST_CHARS = 24000
+
+        fun digestTranscript(items: List<DigestItem>): String {
+            val out = StringBuilder()
+            val perItem = (MAX_DIGEST_CHARS / maxOf(1, items.size) - 60).coerceIn(150, 700)
+            for (it in items) {
+                val body = it.bodyHtml?.let(::plain)?.take(perItem) ?: ""
+                val entry = "[${it.time}] ${it.title}\n$body".trim() + "\n\n"
+                if (out.length + entry.length > MAX_DIGEST_CHARS) break
+                out.append(entry)
+            }
+            return out.toString().trim()
+        }
+
         fun transcript(thread: Thread, title: String): String {
             val lines = arrayListOf("POST: $title")
             thread.root?.let { root ->
@@ -75,7 +106,14 @@ Do not invent details that are not in the text. rotter posts are often unverifie
         }
     }
 
-    suspend fun summarize(thread: Thread, title: String): String = withContext(Dispatchers.IO) {
+    suspend fun summarize(thread: Thread, title: String): String =
+        complete(systemPrompt(language), transcript(thread, title))
+
+    /** A digest of the scoops posted in the last [window] (main posts only). */
+    suspend fun summarizeDigest(items: List<DigestItem>, window: String): String =
+        complete(digestPrompt(language, window), digestTranscript(items))
+
+    private suspend fun complete(system: String, user: String): String = withContext(Dispatchers.IO) {
         val root = baseUrl.trim().replaceFirst(Regex("/+$"), "")
         val url = "$root/chat/completions"
         val payload = JSONObject()
@@ -84,8 +122,8 @@ Do not invent details that are not in the text. rotter posts are often unverifie
             .put(
                 "messages",
                 JSONArray()
-                    .put(JSONObject().put("role", "system").put("content", systemPrompt(language)))
-                    .put(JSONObject().put("role", "user").put("content", transcript(thread, title))),
+                    .put(JSONObject().put("role", "system").put("content", system))
+                    .put(JSONObject().put("role", "user").put("content", user)),
             )
         val req = try {
             Request.Builder()

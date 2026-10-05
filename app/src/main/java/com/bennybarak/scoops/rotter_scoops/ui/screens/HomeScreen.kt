@@ -17,9 +17,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Login
 import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.rounded.Bolt
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Settings
@@ -64,6 +66,7 @@ class HomeState(route: HomeRoute) {
     var index by mutableIntStateOf(0)
     val scoops = ScoopsController(route.scope)
     val compose = ComposeState(route, threadId = null, parentNum = 0, editNum = null, embedded = true)
+    val digest = DigestState(route.scope)
 }
 
 /**
@@ -86,11 +89,13 @@ fun HomeScreen(route: HomeRoute) {
         when (s.index) {
             0 -> ScoopsScreen(s.scoops, bottomInset)
             1 -> NewMessageScreen(s.compose, bottomInset)
+            2 -> DigestScreen(s.digest, s.scoops.loaded, bottomInset)
             else -> SettingsScreen(bottomInset)
         }
         val items = listOf(
             Triple(Icons.Outlined.Bolt, Icons.Rounded.Bolt, l.tabScoops),
             Triple(Icons.Outlined.Edit, Icons.Rounded.Edit, l.tabNewMessage),
+            Triple(Icons.Outlined.AutoAwesome, Icons.Rounded.AutoAwesome, l.tabDigest),
             Triple(Icons.Outlined.Settings, Icons.Rounded.Settings, l.tabSettings),
         )
         NavigationBar(

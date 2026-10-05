@@ -3,6 +3,19 @@ package com.bennybarak.scoops.rotter_scoops.ui
 // Ported from the Flutter build's app_en.arb / app_he.arb.
 
 abstract class Strings {
+    abstract val digestOlderLoaded: String
+    abstract val tabDigest: String
+    abstract val digestTitle: String
+    abstract val digestIntro: String
+    abstract val digestWindow: String
+    abstract val digestNone: String
+    abstract val digestButton: String
+    abstract val digestNeedsKey: String
+    abstract val digestFeedReach: String
+    abstract val digestPostedIn: String
+    abstract fun scoopsCount(n: Int): String
+    abstract fun durationLabel(minutes: Int): String
+    abstract fun digestLoading(done: Int, total: Int): String
     abstract val back: String
     abstract val moreOptions: String
     abstract val brandRotter: String
@@ -174,6 +187,24 @@ abstract class Strings {
 }
 
 object StringsEn : Strings() {
+    override val digestOlderLoaded = "older scoops are loaded when you summarize"
+    override val tabDigest = "Digest"
+    override val digestTitle = "Scoops digest"
+    override val digestIntro = "An AI summary of the scoops posted in the time you choose: main posts only, no comments."
+    override val digestWindow = "Posted in the last"
+    override val digestNone = "No scoops were posted in this time"
+    override val digestButton = "Summarize"
+    override val digestNeedsKey = "To get a digest, turn on AI summaries and add an API key."
+    override val digestFeedReach = "The feed only reaches back"
+    override val digestPostedIn = "Digest of the last"
+    override fun scoopsCount(n: Int) = if (n == 1) "1 scoop" else "$n scoops"
+    override fun durationLabel(minutes: Int) = when {
+        minutes < 60 -> "$minutes minutes"
+        minutes == 60 -> "hour"
+        minutes % 60 == 0 -> "${minutes / 60} hours"
+        else -> "${minutes / 60}h ${minutes % 60}m"
+    }
+    override fun digestLoading(done: Int, total: Int) = "Loading scoops… $done/$total"
     override val back = "Back"
     override val moreOptions = "More options"
     override val brandRotter = "Rotter"
@@ -356,6 +387,25 @@ object StringsEn : Strings() {
 }
 
 object StringsHe : Strings() {
+    override val digestOlderLoaded = "סקופים ישנים יותר ייטענו בזמן הסיכום"
+    override val tabDigest = "סיכום"
+    override val digestTitle = "סיכום סקופים"
+    override val digestIntro = "סיכום AI של הסקופים שפורסמו בפרק הזמן שתבחר/י: ההודעות הראשיות בלבד, בלי תגובות."
+    override val digestWindow = "פורסמו ב־"
+    override val digestNone = "לא פורסמו סקופים בזמן הזה"
+    override val digestButton = "סכם"
+    override val digestNeedsKey = "כדי לקבל סיכום, הפעילו את סיכומי ה-AI והוסיפו מפתח API."
+    override val digestFeedReach = "הפיד מגיע רק עד"
+    override val digestPostedIn = "סיכום של"
+    override fun scoopsCount(n: Int) = if (n == 1) "סקופ אחד" else "$n סקופים"
+    override fun durationLabel(minutes: Int) = when {
+        minutes < 60 -> "$minutes הדקות האחרונות"
+        minutes == 60 -> "השעה האחרונה"
+        minutes == 120 -> "השעתיים האחרונות"
+        minutes % 60 == 0 -> "${minutes / 60} השעות האחרונות"
+        else -> "${minutes / 60}:${(minutes % 60).toString().padStart(2, '0')} השעות האחרונות"
+    }
+    override fun digestLoading(done: Int, total: Int) = "טוען סקופים… $done/$total"
     override val back = "חזרה"
     override val moreOptions = "אפשרויות נוספות"
     override val brandRotter = "רוטר"

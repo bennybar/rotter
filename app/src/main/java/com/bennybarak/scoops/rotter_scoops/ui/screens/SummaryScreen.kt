@@ -210,6 +210,46 @@ private fun Directional(text: String, content: @Composable () -> Unit) {
     )
 }
 
+/** One block of a model's Markdown answer, in its own text direction. */
+@Composable
+fun SummaryBlockView(b: SummaryBlock) {
+    val p = palette
+    val body = TextStyle(fontSize = 15.5.sp, lineHeight = 1.5.em, color = p.ink)
+    Box(Modifier.padding(top = if (b.kind == SummaryBlockKind.heading) 14.dp else 6.dp)) {
+        Directional(b.text) {
+            when (b.kind) {
+                SummaryBlockKind.heading -> Text(
+                    inline(b.text),
+                    style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.W800, color = p.ink),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                SummaryBlockKind.item -> Row(Modifier.fillMaxWidth()) {
+                    Text(b.marker!!, style = body.copy(color = p.muted), modifier = Modifier.width(22.dp))
+                    Text(inline(b.text), style = body, modifier = Modifier.weight(1f))
+                }
+                SummaryBlockKind.paragraph -> Text(inline(b.text), style = body, modifier = Modifier.fillMaxWidth())
+            }
+        }
+    }
+}
+
+/**
+ * rotter runs on unverified rumour, and a fluent summary of a rumour reads
+ * far more authoritative than the posts it came from.
+ */
+@Composable
+fun AiDisclaimer() {
+    val p = palette
+    Column {
+        Spacer(Modifier.height(18.dp))
+        Row {
+            Icon(Icons.Rounded.Info, null, tint = p.muted, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(strings.aiDisclaimer, style = TextStyle(fontSize = 12.5.sp, color = p.muted), modifier = Modifier.weight(1f))
+        }
+    }
+}
+
 @Composable
 fun SummaryScreen(s: SummaryState) {
     val l = strings
@@ -297,35 +337,8 @@ fun SummaryScreen(s: SummaryState) {
                 }
                 // Rendered as blocks: each takes its own direction, so a Hebrew
                 // answer hugs the right and an English one the left.
-                items(blocks.size) { i ->
-                    val b = blocks[i]
-                    Box(Modifier.padding(top = if (b.kind == SummaryBlockKind.heading) 14.dp else 6.dp)) {
-                        Directional(b.text) {
-                            when (b.kind) {
-                                SummaryBlockKind.heading -> Text(
-                                    inline(b.text),
-                                    style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.W800, color = p.ink),
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                                SummaryBlockKind.item -> Row(Modifier.fillMaxWidth()) {
-                                    Text(b.marker!!, style = body.copy(color = p.muted), modifier = Modifier.width(22.dp))
-                                    Text(inline(b.text), style = body, modifier = Modifier.weight(1f))
-                                }
-                                SummaryBlockKind.paragraph -> Text(inline(b.text), style = body, modifier = Modifier.fillMaxWidth())
-                            }
-                        }
-                    }
-                }
-                item {
-                    Spacer(Modifier.height(18.dp))
-                    // rotter runs on unverified rumour, and a fluent summary of a
-                    // rumour reads far more authoritative than the thread itself.
-                    Row {
-                        Icon(Icons.Rounded.Info, null, tint = p.muted, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text(l.aiDisclaimer, style = TextStyle(fontSize = 12.5.sp, color = p.muted), modifier = Modifier.weight(1f))
-                    }
-                }
+                items(blocks.size) { i -> SummaryBlockView(blocks[i]) }
+                item { AiDisclaimer() }
             }
         }
     }

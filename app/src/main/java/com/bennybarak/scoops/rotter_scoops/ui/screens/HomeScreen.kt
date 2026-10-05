@@ -1,5 +1,6 @@
 package com.bennybarak.scoops.rotter_scoops.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -77,6 +78,9 @@ fun HomeScreen(route: HomeRoute) {
     val view = LocalView.current
     val accent = MaterialTheme.colorScheme.primary
     val bottomInset = TabBarHeight + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+
+    // Back from another tab returns to Scoops first, rather than leaving the app.
+    BackHandler(enabled = s.index != 0) { s.index = 0 }
 
     Box(Modifier.fillMaxSize()) {
         when (s.index) {

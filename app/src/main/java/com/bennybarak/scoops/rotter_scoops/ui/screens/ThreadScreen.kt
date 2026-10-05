@@ -725,11 +725,14 @@ private fun Fabs(s: ThreadState) {
 
     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (!s.hintDismissed) {
-            Surface(
-                modifier = Modifier.widthIn(max = 250.dp),
-                color = p.surface,
-                shadowElevation = 3.dp,
-                shape = RoundedCornerShape(14.dp),
+            // Not a Surface: that swallows every touch, so the comments under the
+            // card couldn't be scrolled. Only the close button takes input.
+            val shape = RoundedCornerShape(14.dp)
+            Box(
+                Modifier
+                    .widthIn(max = 250.dp)
+                    .dropShadowCompat(shape, Color.Black.copy(alpha = 0.18f), 6.dp, 2.dp)
+                    .background(p.surface, shape),
             ) {
                 Row(Modifier.padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 10.dp), verticalAlignment = Alignment.Top) {
                     Text(

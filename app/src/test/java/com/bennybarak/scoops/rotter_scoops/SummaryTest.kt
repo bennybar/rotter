@@ -56,6 +56,19 @@ class SummaryTest {
         assertEquals(4, blocks.size)
     }
 
+    @Test fun telegramEmbedWithoutLinkBecomesCard() {
+        val base = "https://rotter.net/forum/scoops1/1.shtml"
+        // Only the embed (rotter's <script> turned iframe), no t.me link: one card.
+        val only = HtmlBlocks.parse("טקסט<iframe src=\"https://t.me/c/7?embed=1\"></iframe>", base, true)
+        assertEquals(TelegramBlock("c/7"), only[1])
+        assertEquals(2, only.size)
+        // Embed before its link: still exactly one card.
+        val both = HtmlBlocks.parse("<iframe src=\"https://t.me/c/7?embed=1\"></iframe><a href=\"https://t.me/c/7\">x</a>", base, true)
+        assertEquals(listOf(TelegramBlock("c/7")), both)
+        // Inside a Telegram card nothing nests.
+        assertTrue(HtmlBlocks.parse("<iframe src=\"https://t.me/c/7?embed=1\"></iframe>", "https://t.me/", false).isEmpty())
+    }
+
     @Test fun avatarColorsMatchFlutterHash() {
         // Stable per name and spread across the palette.
         assertEquals(avatarColor("שמעון"), avatarColor("שמעון"))

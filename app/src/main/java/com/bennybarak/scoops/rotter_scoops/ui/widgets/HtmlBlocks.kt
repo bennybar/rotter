@@ -83,8 +83,14 @@ object HtmlBlocks {
         var centerDepth = 0
         val links = ArrayList<String>()
 
+        /** Telegram posts linked from the text (they render as cards there). */
+        val linkedPosts = HashSet<String>()
+
         fun run(html: String): List<Block> {
             val body = Jsoup.parseBodyFragment(html).body()
+            if (embedTelegram) {
+                for (a in body.select("a[href]")) telegramChannelPost(a.attr("href"))?.let(linkedPosts::add)
+            }
             walk(body)
             flush()
             return out
@@ -196,11 +202,16 @@ object HtmlBlocks {
                     val src = e.attr("src").ifBlank { e.selectFirst("source")?.attr("src") ?: "" }
                     if (src.isNotBlank()) {
                         val abs = resolveUrl(baseUrl, src)
-                        // A telegram iframe/video duplicates the t.me <a> link we
-                        // embed — drop it so the message renders only once.
-                        if (telegramChannelPost(abs) == null) {
+                        val cp = telegramChannelPost(abs)
+                        if (cp == null) {
                             flush()
                             out.add(EmbedBlock(abs))
+                        } else if (embedTelegram && linkedPosts.add(cp)) {
+                            // A Telegram embed with no t.me link in the text: show
+                            // it as the card. (When the link is there, the link
+                            // renders the card and this duplicate is dropped.)
+                            flush()
+                            out.add(TelegramBlock(cp))
                         }
                     }
                 }

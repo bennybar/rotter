@@ -140,6 +140,9 @@ fun ScoopsTheme(content: @Composable () -> Unit) {
             specVersion = ColorSpec.SpecVersion.SPEC_2021,
         ).copy(
             primary = seed,
+            // The scheme's own onPrimary is near-black in dark mode, unreadable
+            // on these saturated accents; white reads on all of them.
+            onPrimary = Color.White,
             surface = p.surface,
             onSurface = p.ink,
             onSurfaceVariant = p.muted,

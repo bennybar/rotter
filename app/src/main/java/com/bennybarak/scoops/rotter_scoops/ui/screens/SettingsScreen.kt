@@ -52,6 +52,12 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.TextButton
+import com.bennybarak.scoops.rotter_scoops.ui.Danger
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -90,6 +96,24 @@ fun SettingsScreen(bottomInset: Dp) {
     val nav = LocalNav.current
     val s = SettingsController
     val accent = MaterialTheme.colorScheme.primary
+    var confirmSignOut by remember { mutableStateOf(false) }
+    // Signing out erases the saved credentials and "my replies": ask first.
+    if (confirmSignOut) {
+        AlertDialog(
+            onDismissRequest = { confirmSignOut = false },
+            text = { Text(l.signOutConfirm) },
+            dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text(l.cancel) } },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmSignOut = false
+                        nav.home.scope.launch { AuthService.signOut() }
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = Danger),
+                ) { Text(l.signOut) }
+            },
+        )
+    }
     AppScaffold(bar = { AppBar(title = { BarTitle(l.settingsTitle) }) }) {
         LazyColumn(
             Modifier.fillMaxSize(),
@@ -194,7 +218,7 @@ fun SettingsScreen(bottomInset: Dp) {
                 Card {
                     if (AuthService.loggedIn) {
                         ListItem(
-                            modifier = Modifier.clickable { nav.home.scope.launch { AuthService.signOut() } },
+                            modifier = Modifier.clickable { confirmSignOut = true },
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                             leadingContent = { Icon(Icons.AutoMirrored.Rounded.Logout, null, tint = accent) },
                             headlineContent = {

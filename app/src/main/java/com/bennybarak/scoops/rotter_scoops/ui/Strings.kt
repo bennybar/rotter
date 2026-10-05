@@ -29,6 +29,7 @@ abstract class Strings {
     abstract val loginFailed: String
     abstract val loginError: String
     abstract val signOut: String
+    abstract val signOutConfirm: String
     abstract val signedIn: String
     abstract val loginSubtitle: String
     abstract val newMessagePrompt: String
@@ -186,6 +187,7 @@ object StringsEn : Strings() {
     override val loginFailed = "Wrong username or password"
     override val loginError = "Sign-in failed — check your connection and try again"
     override val signOut = "Sign out"
+    override val signOutConfirm = "Sign out of rotter? Your saved sign-in and the list of scoops you replied to will be removed from this device."
     override val signedIn = "Signed in"
     override val loginSubtitle = "Sign in to rotter.net to post"
     override val newMessagePrompt = "Sign in to post a new message"
@@ -354,6 +356,7 @@ object StringsHe : Strings() {
     override val loginFailed = "שם משתמש או סיסמה שגויים"
     override val loginError = "ההתחברות נכשלה — בדקו את החיבור ונסו שוב"
     override val signOut = "התנתקות"
+    override val signOutConfirm = "להתנתק מרוטר? פרטי ההתחברות השמורים ורשימת הסקופים שהגבת בהם יימחקו מהמכשיר."
     override val signedIn = "מחובר/ת"
     override val loginSubtitle = "התחברות ל-rotter.net כדי לפרסם"
     override val newMessagePrompt = "התחבר/י כדי לפרסם הודעה חדשה"

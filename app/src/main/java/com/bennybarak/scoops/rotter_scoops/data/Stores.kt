@@ -20,7 +20,10 @@ import kotlin.math.roundToInt
 
 enum class ThemeMode { system, light, dark }
 
-/** Selectable accent colors. The first is the default (amber). */
+/**
+ * Selectable colour themes (stored under the old "accent" key). Amber is the
+ * classic look; every other theme also tints the app's surfaces.
+ */
 enum class Accent(val seed: Long) {
     amber(0xFFF57C00),
     red(0xFFD32030),
@@ -28,6 +31,7 @@ enum class Accent(val seed: Long) {
     green(0xFF2E7D32),
     purple(0xFF6A3DE8),
     graphite(0xFF4A5160),
+    lavender(0xFF6750A4),
 }
 
 /**
@@ -122,6 +126,7 @@ object SettingsController {
     private val sortListeners = ArrayList<() -> Unit>()
     fun addSortListener(l: () -> Unit) = sortListeners.add(l)
     fun removeSortListener(l: () -> Unit) = sortListeners.remove(l)
+    internal val sortListenerCount get() = sortListeners.size
 
     fun setSortMode(m: SortMode) {
         val changed = m != sortMode

@@ -3,6 +3,17 @@ package com.bennybarak.scoops.rotter_scoops.ui
 // Ported from the Flutter build's app_en.arb / app_he.arb.
 
 abstract class Strings {
+    abstract val brandRotter: String
+    abstract val newCommentsBadge: String
+    abstract val colorTheme: String
+    abstract val themeClassic: String
+    abstract val themeRed: String
+    abstract val themeBlue: String
+    abstract val themeGreen: String
+    abstract val themePurple: String
+    abstract val themeGraphite: String
+    abstract val themeLavender: String
+    abstract val sortTitle: String
     abstract val appTitle: String
     abstract val tabScoops: String
     abstract val tabNewMessage: String
@@ -161,6 +172,17 @@ abstract class Strings {
 }
 
 object StringsEn : Strings() {
+    override val brandRotter = "Rotter"
+    override val newCommentsBadge = "New comments"
+    override val colorTheme = "Color theme"
+    override val themeClassic = "Classic"
+    override val themeRed = "Crimson"
+    override val themeBlue = "Ocean"
+    override val themeGreen = "Forest"
+    override val themePurple = "Violet"
+    override val themeGraphite = "Graphite"
+    override val themeLavender = "Lavender"
+    override val sortTitle = "Sort"
     override val appTitle = "Rotter Scoops"
     override val tabScoops = "Scoops"
     override val tabNewMessage = "New message"
@@ -330,6 +352,17 @@ object StringsEn : Strings() {
 }
 
 object StringsHe : Strings() {
+    override val brandRotter = "רוטר"
+    override val newCommentsBadge = "תגובות חדשות"
+    override val colorTheme = "ערכת צבעים"
+    override val themeClassic = "קלאסי"
+    override val themeRed = "ארגמן"
+    override val themeBlue = "אוקיינוס"
+    override val themeGreen = "יער"
+    override val themePurple = "סגול"
+    override val themeGraphite = "גרפיט"
+    override val themeLavender = "לבנדר"
+    override val sortTitle = "מיון"
     override val appTitle = "רוטר סקופים"
     override val tabScoops = "סקופים"
     override val tabNewMessage = "הודעה חדשה"

@@ -1,6 +1,7 @@
 package com.bennybarak.scoops.rotter_scoops.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -11,6 +12,8 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
+import com.bennybarak.scoops.rotter_scoops.data.Accent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.TextStyle
@@ -38,7 +41,7 @@ val NotoSansHebrew = FontFamily(
     Font(R.font.noto_sans_hebrew_800, FontWeight.W800),
 )
 
-/** Neutral ink/background ramps, shared across accents. */
+/** Neutral ink/background ramps (per colour theme). */
 @Immutable
 data class Palette(
     val dark: Boolean,
@@ -121,6 +124,47 @@ private val BaseText = TextStyle(
     letterSpacing = 0.25.sp,
 )
 
+/**
+ * The palette and Material colour scheme for a colour theme. Classic amber
+ * keeps the original hand-tuned warm neutrals and the pure accent as primary.
+ * Every other theme takes its neutrals from the theme's own tonal palette, so
+ * backgrounds, cards and fields carry its hue, with the scheme's primary.
+ */
+fun themeColors(accent: Accent, dark: Boolean): Pair<Palette, ColorScheme> {
+    val seed = Color(accent.seed)
+    val base = dynamicColorScheme(
+        seedColor = seed,
+        isDark = dark,
+        isAmoled = false,
+        style = PaletteStyle.TonalSpot,
+        specVersion = ColorSpec.SpecVersion.SPEC_2021,
+    )
+    if (accent == Accent.amber) {
+        val p = if (dark) DarkPalette else LightPalette
+        return p to base.copy(
+            primary = seed,
+            // The scheme's own onPrimary is near-black in dark mode, unreadable
+            // on this saturated accent; white reads on it.
+            onPrimary = Color.White,
+            surface = p.surface,
+            onSurface = p.ink,
+            onSurfaceVariant = p.muted,
+            background = p.bg,
+        )
+    }
+    val p = Palette(
+        dark = dark,
+        ink = base.onSurface,
+        muted = base.onSurfaceVariant.copy(alpha = 0.85f).compositeOver(if (dark) base.surface else base.surfaceContainer),
+        // Light: cards a step lighter than the page; dark: a step lighter too.
+        bg = if (dark) base.surface else base.surfaceContainer,
+        surface = if (dark) base.surfaceContainerHigh else base.surfaceContainerLowest,
+        field = if (dark) base.surfaceContainerHighest else base.surfaceContainerHigh,
+        body = base.onSurfaceVariant,
+    )
+    return p to base.copy(surface = p.surface, background = p.bg)
+}
+
 @Composable
 fun ScoopsTheme(content: @Composable () -> Unit) {
     val s = SettingsController
@@ -129,26 +173,7 @@ fun ScoopsTheme(content: @Composable () -> Unit) {
         ThemeMode.dark -> true
         ThemeMode.system -> isSystemInDarkTheme()
     }
-    val p = if (dark) DarkPalette else LightPalette
-    val seed = Color(s.accent.seed)
-    val scheme = remember(seed, dark) {
-        dynamicColorScheme(
-            seedColor = seed,
-            isDark = dark,
-            isAmoled = false,
-            style = PaletteStyle.TonalSpot,
-            specVersion = ColorSpec.SpecVersion.SPEC_2021,
-        ).copy(
-            primary = seed,
-            // The scheme's own onPrimary is near-black in dark mode, unreadable
-            // on these saturated accents; white reads on all of them.
-            onPrimary = Color.White,
-            surface = p.surface,
-            onSurface = p.ink,
-            onSurfaceVariant = p.muted,
-            background = p.bg,
-        )
-    }
+    val (p, scheme) = remember(s.accent, dark) { themeColors(s.accent, dark) }
     // Chrome follows the language and reads naturally; the Hebrew *content* is
     // wrapped RTL at the screen level.
     val lang = s.locale ?: Locale.getDefault().language.let { if (it == "iw" || it == "he") "he" else "en" }

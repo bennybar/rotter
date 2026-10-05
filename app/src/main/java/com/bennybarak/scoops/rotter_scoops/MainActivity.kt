@@ -84,6 +84,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        // Configuration changes are handled in place (see the manifest), so
+        // reaching here means this activity is really gone.
+        if (!isChangingConfigurations) nav.dispose()
+    }
+
     override fun onStop() {
         super.onStop()
         nav.home.state.scoops.onPaused()

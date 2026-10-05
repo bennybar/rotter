@@ -80,6 +80,7 @@ import com.bennybarak.scoops.rotter_scoops.ui.AISettingsRoute
 import com.bennybarak.scoops.rotter_scoops.ui.LocalNav
 import com.bennybarak.scoops.rotter_scoops.ui.openLogin
 import com.bennybarak.scoops.rotter_scoops.ui.palette
+import com.bennybarak.scoops.rotter_scoops.ui.themeColors
 import com.bennybarak.scoops.rotter_scoops.ui.strings
 import com.bennybarak.scoops.rotter_scoops.ui.widgets.AppBar
 import com.bennybarak.scoops.rotter_scoops.ui.widgets.AppScaffold
@@ -134,7 +135,7 @@ fun SettingsScreen(bottomInset: Dp) {
                             ),
                         ) { i -> s.setMode(listOf(ThemeMode.light, ThemeMode.dark, ThemeMode.system)[i]) }
                         Spacer(Modifier.height(22.dp))
-                        RowLabel(Icons.Rounded.Palette, l.accentColor)
+                        RowLabel(Icons.Rounded.Palette, l.colorTheme)
                         Spacer(Modifier.height(14.dp))
                         AccentPicker(s.accent)
                         Spacer(Modifier.height(22.dp))
@@ -353,28 +354,70 @@ private fun StepSlider(
     }
 }
 
+/** The colour themes, each previewed in the current light/dark mode: its page, a card and its accent. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AccentPicker(selected: Accent) {
+    val l = strings
     val p = palette
     val view = LocalView.current
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    val names = mapOf(
+        Accent.amber to l.themeClassic,
+        Accent.red to l.themeRed,
+        Accent.blue to l.themeBlue,
+        Accent.green to l.themeGreen,
+        Accent.purple to l.themePurple,
+        Accent.graphite to l.themeGraphite,
+        Accent.lavender to l.themeLavender,
+    )
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         for (a in Accent.entries) {
-            val c = Color(a.seed)
-            Box(
+            val (tp, scheme) = remember(a, p.dark) { themeColors(a, p.dark) }
+            val isSel = a == selected
+            Column(
                 Modifier
-                    .size(42.dp)
-                    .dropShadowCompat(CircleShape, c.copy(alpha = 0.4f), 8.dp, 3.dp)
-                    .background(c, CircleShape)
-                    .border(3.dp, if (a == selected) p.ink else Color.Transparent, CircleShape)
-                    .clip(CircleShape)
+                    .width(64.dp)
+                    .clip(RoundedCornerShape(16.dp))
                     .clickable {
-                        view.selectionClick()
-                        SettingsController.setAccent(a)
+                        if (!isSel) {
+                            view.selectionClick()
+                            SettingsController.setAccent(a)
+                        }
                     },
-                contentAlignment = Alignment.Center,
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                if (a == selected) Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(22.dp))
+                Box(
+                    Modifier
+                        .size(60.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(tp.bg)
+                        .border(
+                            if (isSel) 3.dp else 1.dp,
+                            if (isSel) scheme.primary else p.field,
+                            RoundedCornerShape(18.dp),
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    // A tiny card in the theme's surface colour, with its accent.
+                    Box(
+                        Modifier.size(36.dp, 26.dp).background(tp.surface, RoundedCornerShape(8.dp)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Box(Modifier.size(16.dp).background(scheme.primary, CircleShape), contentAlignment = Alignment.Center) {
+                            if (isSel) Icon(Icons.Rounded.Check, null, tint = scheme.onPrimary, modifier = Modifier.size(12.dp))
+                        }
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    names[a] ?: a.name,
+                    maxLines = 1,
+                    style = TextStyle(
+                        fontSize = 12.sp,
+                        fontWeight = if (isSel) FontWeight.W800 else FontWeight.W600,
+                        color = if (isSel) p.ink else p.muted,
+                    ),
+                )
             }
         }
     }

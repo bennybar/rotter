@@ -155,6 +155,7 @@ fun ScrollHidingScaffold(
     atTop: () -> Boolean,
     modifier: Modifier = Modifier,
     pinned: Boolean = false,
+    barHeight: androidx.compose.ui.unit.Dp = BarHeight,
     floatingActions: (@Composable () -> Unit)? = null,
     floatingAlignment: Alignment = Alignment.BottomEnd,
     content: @Composable BoxScope.() -> Unit,
@@ -190,7 +191,7 @@ fun ScrollHidingScaffold(
         }
     }
     val barOffset by animateDpAsState(
-        if (visible) 0.dp else -BarHeight,
+        if (visible) 0.dp else -barHeight,
         animationSpec = tween(200, easing = EaseOutCubic),
         label = "bar",
     )
@@ -204,7 +205,7 @@ fun ScrollHidingScaffold(
         CompositionLocalProvider(LocalContentColor provides p.body) {
             Box(Modifier.fillMaxSize().nestedScroll(connection)) { content() }
         }
-        Box(Modifier.fillMaxWidth().height(BarHeight).offset(y = barOffset)) { bar() }
+        Box(Modifier.fillMaxWidth().height(barHeight).offset(y = barOffset)) { bar() }
         if (floatingActions != null) {
             Box(
                 Modifier

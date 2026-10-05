@@ -352,10 +352,12 @@ private val redClockThenDate = Regex(
     """color=["']?red["']?[^>]*>\s*(\d{1,2}:\d{2})\s*</font>[\s\S]{0,300}?(\d{1,2}\.\d{1,2}\.\d{2,4})""",
     RegexOption.IGNORE_CASE,
 )
-private val rootAnchor = Regex("""<a\s+name="0"[^>]*>""", RegexOption.IGNORE_CASE)
-private val nextAnchor = Regex("""<a\s+name="\d""", RegexOption.IGNORE_CASE)
-private val anchorNums = Regex("""<a\s+name="(\d+)"""", RegexOption.IGNORE_CASE)
-private val authorRe = Regex("""^\s*(?:<b>)?\s*([^<]+)""")
+// Anchors with or without quotes around the number (`name="0"` / `name=0`).
+private val rootAnchor = Regex("""<a\s+name=["']?0["']?(?=[\s>])[^>]*>""", RegexOption.IGNORE_CASE)
+private val nextAnchor = Regex("""<a\s+name=["']?\d""", RegexOption.IGNORE_CASE)
+private val anchorNums = Regex("""<a\s+name=["']?(\d+)["']?(?=[\s>])""", RegexOption.IGNORE_CASE)
+// The poster's name: the first text after the anchor, past any wrapping tags.
+private val authorRe = Regex("""^\s*(?:<[^>]+>\s*)*([^<]+)""")
 
 /**
  * Pulls the handful of facts a list card needs straight out of the raw HTML,

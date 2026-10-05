@@ -165,6 +165,12 @@ data class FlatRow(
 class ThreadState(val scoop: Scoop, private val scope: CoroutineScope) {
     companion object {
         private const val HINT_KEY = "threadNavigationExplained"
+
+        /** Bodies parsed before the thread is shown (a few screens' worth). */
+        private const val WARM_FIRST = 30
+
+        /** Background warming stops here, well inside the 600-entry layout cache. */
+        private const val WARM_MAX = 400
     }
 
     var thread by mutableStateOf<Thread?>(null); private set
@@ -328,10 +334,21 @@ class ThreadState(val scoop: Scoop, private val scope: CoroutineScope) {
         try {
             val id = scoop.id
             val t = RotterService.fetchThread(id)
-            // Warm the body layout cache off the main thread, so the first
-            // frames of the thread don't parse every visible comment's HTML.
+            // Parse the first screenfuls' bodies off the main thread before
+            // showing the thread (so its first frames don't), and the rest
+            // after it is on screen — never the whole thread up front, which
+            // delayed first content and could overflow the layout cache.
+            val reading = listOfNotNull(t.root) + flatten(t).map { it.msg }
+            val bodies = reading.mapNotNull { it.bodyHtml }
             withContext(Dispatchers.Default) {
-                for (m in t.messages) m.bodyHtml?.let { HtmlBlocks.parse(it, scoop.url, true) }
+                for (b in bodies.take(WARM_FIRST)) HtmlBlocks.parse(b, scoop.url, true)
+            }
+            if (bodies.size > WARM_FIRST) {
+                scope.launch(Dispatchers.Default) {
+                    for (b in bodies.subList(WARM_FIRST, minOf(bodies.size, WARM_MAX))) {
+                        HtmlBlocks.parse(b, scoop.url, true)
+                    }
+                }
             }
             val latest = t.comments.maxOfOrNull { it.num }?.coerceAtLeast(0) ?: 0
             // A first-ever visit sets a baseline; it doesn't label everything new.

@@ -102,6 +102,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.material.icons.rounded.DoneAll
+import androidx.compose.material.icons.rounded.SwapVert
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -215,8 +223,15 @@ class ScoopsController(private val scope: CoroutineScope) {
     private var backgroundedAt: Long? = null
     private var started = false
 
+    private val sortListener: () -> Unit = ::onSortChanged
+
     init {
-        SettingsController.addSortListener(::onSortChanged)
+        SettingsController.addSortListener(sortListener)
+    }
+
+    /** The activity is gone: stop listening to the app-wide sort setting. */
+    fun dispose() {
+        SettingsController.removeSortListener(sortListener)
     }
 
     fun start() {
@@ -225,7 +240,9 @@ class ScoopsController(private val scope: CoroutineScope) {
         scope.launch {
             val cached = DiskCache.read(LIST_FILE) as? JSONArray
             if (cached != null && cached.length() > 0 && !didFetch) {
-                loaded = (0 until cached.length()).map { Scoop.fromJson(cached.getJSONObject(it)) }
+                // Disposable data: an entry that doesn't decode (missing field,
+                // wrong type) means the whole cache is ignored, not a crash.
+                decodeCachedList(cached)?.let { loaded = it }
             }
             load()
             meta.prefetch(SavedStore.followed.scoops.map { it.id })
@@ -406,6 +423,13 @@ class ScoopsController(private val scope: CoroutineScope) {
     }
 }
 
+/** The cached feed, or null when any entry fails to decode. */
+internal fun decodeCachedList(a: JSONArray): List<Scoop>? = try {
+    (0 until a.length()).map { Scoop.fromJson(a.getJSONObject(it)) }
+} catch (_: org.json.JSONException) {
+    null
+}
+
 private fun bucketOf(d: Long): Bucket {
     if (d == 0L) return Bucket.earlier
     fun dayStart(ms: Long) = Calendar.getInstance().apply {
@@ -497,11 +521,14 @@ fun ScoopsScreen(c: ScoopsController, bottomInset: androidx.compose.ui.unit.Dp) 
 
     ScrollHidingScaffold(
         atTop = { !c.listState.canScrollBackward },
+        barHeight = HeaderHeight,
         bar = {
-            Box(Modifier.fillMaxSize()) {
-                if (c.searching) SearchBar(c) else TitleBar(c, onMarkAll = {
-                    if (c.loaded.isNotEmpty()) confirmMarkAll = true
-                })
+            Box(Modifier.fillMaxSize().background(p.bg)) {
+                if (c.searching) {
+                    Box(Modifier.align(Alignment.Center)) { SearchBar(c) }
+                } else {
+                    ScoopsHeader(c)
+                }
                 // Work still happening behind a list that already looks
                 // finished (it paints from disk): the feed request, then the
                 // card backfill.
@@ -521,7 +548,7 @@ fun ScoopsScreen(c: ScoopsController, bottomInset: androidx.compose.ui.unit.Dp) 
                     PullToRefreshDefaults.Indicator(
                         state = pullState,
                         isRefreshing = refreshing,
-                        modifier = Modifier.align(Alignment.TopCenter).padding(top = BarHeight),
+                        modifier = Modifier.align(Alignment.TopCenter).padding(top = HeaderHeight),
                     )
                 },
             ) {
@@ -529,6 +556,7 @@ fun ScoopsScreen(c: ScoopsController, bottomInset: androidx.compose.ui.unit.Dp) 
                     c,
                     bottomInset = bottomInset,
                     onRetry = ::refresh,
+                    onMarkAll = { if (c.loaded.isNotEmpty()) confirmMarkAll = true },
                     onOpen = { s ->
                         view.selectionClick()
                         nav.push(ThreadRoute(s))
@@ -554,7 +582,7 @@ fun ScoopsScreen(c: ScoopsController, bottomInset: androidx.compose.ui.unit.Dp) 
                 Box(
                     Modifier
                         .fillMaxWidth()
-                        .padding(top = BarHeight + 10.dp),
+                        .padding(top = HeaderHeight + 10.dp, start = 14.dp, end = 14.dp),
                     contentAlignment = Alignment.TopCenter,
                 ) {
                     UpdatePill(c, pend) {
@@ -676,61 +704,138 @@ private fun SearchBar(c: ScoopsController) {
     )
 }
 
+/** Height of the list's large header (title + search). */
+private val HeaderHeight = 72.dp
+
+/** A large "סקופים" title with the brand under-line, and a round search button. */
 @Composable
-private fun TitleBar(c: ScoopsController, onMarkAll: () -> Unit) {
+private fun ScoopsHeader(c: ScoopsController) {
+    val l = strings
+    val p = palette
+    Row(
+        Modifier
+            .fillMaxSize()
+            .padding(start = 20.dp, end = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            l.tabScoops,
+            style = TextStyle(fontSize = 30.sp, fontWeight = FontWeight.W800, letterSpacing = (-0.6).sp, color = p.ink),
+            modifier = Modifier.alignByBaseline(),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            l.brandRotter,
+            style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.W600, color = p.muted),
+            modifier = Modifier.alignByBaseline(),
+        )
+        Spacer(Modifier.weight(1f))
+        Box(
+            Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(p.field)
+                .clickable { c.searching = true }
+                .semantics { contentDescription = l.searchScoops },
+            contentAlignment = Alignment.Center,
+        ) { Icon(Icons.Rounded.Search, null, tint = p.ink) }
+    }
+}
+
+/** The filter chips, all six, each with its count; scrolls sideways. */
+@Composable
+private fun FilterChips(c: ScoopsController) {
     val l = strings
     val p = palette
     val view = LocalView.current
-    val active = c.filter != ScoopFilter.all
+    val scheme = MaterialTheme.colorScheme
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.padding(top = 4.dp, bottom = 6.dp),
+    ) {
+        items(ScoopFilter.entries.size) { i ->
+            val f = ScoopFilter.entries[i]
+            val selected = c.filter == f
+            Row(
+                Modifier
+                    .height(44.dp)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(if (selected) scheme.primary else p.surface)
+                    .clickable {
+                        if (!selected) {
+                            view.selectionClick()
+                            c.filter = f
+                        }
+                    }
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val fg = if (selected) scheme.onPrimary else p.ink
+                if (selected) {
+                    Icon(Icons.Rounded.Check, null, tint = fg, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                }
+                Text(filterLabel(f, l), style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = fg))
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "${c.count(f)}",
+                    style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W600, color = fg.copy(alpha = 0.7f)),
+                )
+            }
+        }
+    }
+}
+
+/** The sort control (with mark-all-read in its menu), shown beside the first day header. */
+@Composable
+private fun SortControl(c: ScoopsController, onMarkAll: () -> Unit) {
+    val l = strings
+    val p = palette
+    val view = LocalView.current
     var menu by remember { mutableStateOf(false) }
-    AppBar(
-        title = { BarTitle(if (active) filterLabel(c.filter, l) else l.tabScoops) },
-        actions = {
-            IconButton(onClick = { c.searching = true }) {
-                Icon(Icons.Rounded.Search, contentDescription = l.searchScoops)
+    val sort = SettingsController.sortMode
+    Box {
+        Row(
+            Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .clickable { menu = true }
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                if (sort == SortMode.lastComment) l.sortLastComment else l.sortPostTime,
+                style = TextStyle(fontSize = 13.5.sp, fontWeight = FontWeight.W600, color = p.ink),
+            )
+            Spacer(Modifier.width(4.dp))
+            Icon(Icons.Rounded.SwapVert, l.sortBy, tint = p.ink, modifier = Modifier.size(18.dp))
+        }
+        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            val pick: (() -> Unit) -> Unit = { action ->
+                menu = false
+                view.selectionClick()
+                action()
             }
-            // Filter, sort and mark-all-read in one labelled menu.
-            Box {
-                IconButton(onClick = { menu = true }) {
-                    Icon(
-                        if (active) Icons.Rounded.FilterAlt else Icons.Rounded.FilterList,
-                        contentDescription = l.filterTitle,
-                        tint = if (active) MaterialTheme.colorScheme.primary else p.ink,
-                    )
-                }
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    val pick: (() -> Unit) -> Unit = { action ->
-                        menu = false
-                        view.selectionClick()
-                        action()
-                    }
-                    for (f in ScoopFilter.entries) {
-                        CheckedItem("${filterLabel(f, l)} (${c.count(f)})", c.filter == f) { pick { c.filter = f } }
-                    }
-                    HorizontalDivider()
-                    Text(
-                        l.sortBy,
-                        style = TextStyle(fontSize = 12.5.sp, color = p.muted),
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    )
-                    val sort = SettingsController.sortMode
-                    CheckedItem(l.sortLastComment, sort == SortMode.lastComment) {
-                        pick { SettingsController.setSortMode(SortMode.lastComment) }
-                    }
-                    CheckedItem(l.sortPostTime, sort == SortMode.postTime) {
-                        pick { SettingsController.setSortMode(SortMode.postTime) }
-                    }
-                    HorizontalDivider()
-                    DropdownMenuItem(
-                        text = { Text(l.markAllRead, style = TextStyle(fontSize = 16.sp)) },
-                        leadingIcon = { Icon(Icons.AutoMirrored.Rounded.PlaylistAddCheck, null, Modifier.size(20.dp)) },
-                        enabled = c.loaded.isNotEmpty(),
-                        onClick = { pick(onMarkAll) },
-                    )
-                }
+            Text(
+                l.sortBy,
+                style = TextStyle(fontSize = 12.5.sp, color = p.muted),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+            CheckedItem(l.sortLastComment, sort == SortMode.lastComment) {
+                pick { SettingsController.setSortMode(SortMode.lastComment) }
             }
-        },
-    )
+            CheckedItem(l.sortPostTime, sort == SortMode.postTime) {
+                pick { SettingsController.setSortMode(SortMode.postTime) }
+            }
+            HorizontalDivider()
+            DropdownMenuItem(
+                text = { Text(l.markAllRead, style = TextStyle(fontSize = 16.sp)) },
+                leadingIcon = { Icon(Icons.AutoMirrored.Rounded.PlaylistAddCheck, null, Modifier.size(20.dp)) },
+                enabled = c.loaded.isNotEmpty(),
+                onClick = { pick(onMarkAll) },
+            )
+        }
+    }
 }
 
 @Composable
@@ -747,6 +852,7 @@ private fun CheckedItem(text: String, checked: Boolean, onClick: () -> Unit) {
 @Composable
 private fun UpdatePill(c: ScoopsController, pending: List<Scoop>, onTap: () -> Unit) {
     val l = strings
+    val scheme = MaterialTheme.colorScheme
     val ids = remember(c.loaded) { c.loaded.map { it.id }.toSet() }
     val hasNew = pending.any { it.id !in ids }
     val anim = remember { Animatable(0f) }
@@ -754,19 +860,26 @@ private fun UpdatePill(c: ScoopsController, pending: List<Scoop>, onTap: () -> U
     Surface(
         onClick = onTap,
         shape = RoundedCornerShape(999.dp),
-        color = MaterialTheme.colorScheme.primary,
+        color = scheme.tertiaryContainer,
+        contentColor = scheme.onTertiaryContainer,
         shadowElevation = 3.dp,
-        modifier = Modifier.graphicsLayer {
-            alpha = anim.value
-            translationY = -(1 - anim.value) * 0.4f * size.height
-        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                alpha = anim.value
+                translationY = -(1 - anim.value) * 0.4f * size.height
+            },
     ) {
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Rounded.ArrowUpward, null, tint = Color.White, modifier = Modifier.size(17.dp))
-            Spacer(Modifier.width(6.dp))
+        Row(
+            Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Icon(Icons.Rounded.ArrowUpward, null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
             Text(
                 if (hasNew) l.feedNewScoops else l.feedUpdated,
-                style = TextStyle(color = Color.White, fontWeight = FontWeight.W700, fontSize = 13.5.sp),
+                style = TextStyle(fontWeight = FontWeight.W800, fontSize = 14.5.sp, color = scheme.onTertiaryContainer),
             )
         }
     }
@@ -819,14 +932,16 @@ private fun RefreshBar(progress: Float?, feedLoading: Boolean, modifier: Modifie
 }
 
 private sealed interface Entry
-private data class Header(val text: String) : Entry
-private data class Item(val scoop: Scoop) : Entry
+private data class Header(val text: String, val first: Boolean) : Entry
+/** A card and where it sits in its day's group (for the joined corners). */
+private data class Item(val scoop: Scoop, val first: Boolean, val last: Boolean) : Entry
 
 @Composable
 private fun Content(
     c: ScoopsController,
     bottomInset: androidx.compose.ui.unit.Dp,
     onRetry: () -> Unit,
+    onMarkAll: () -> Unit,
     onOpen: (Scoop) -> Unit,
     onToggleRead: (Scoop) -> Unit,
     onReply: (Scoop) -> Unit,
@@ -844,18 +959,8 @@ private fun Content(
     val sortMode = SettingsController.sortMode
     val times = ScoopMetaCache.instance.orderingTimes
     val scoops = c.source(filter).filter { (q.isEmpty() || it.title.lowercase().contains(q)) && c.matches(filter, it) }
-    if (scoops.isEmpty()) {
-        if (q.isNotEmpty()) return MessageState(Icons.Rounded.SearchOff, l.noResults)
-        if (filter != ScoopFilter.all) {
-            return MessageState(filterIcon(filter), emptyText(filter, l)) {
-                FilledTonalButton(onClick = { c.filter = ScoopFilter.all }) { Text(l.filterShowAll) }
-            }
-        }
-        return MessageState(Icons.Rounded.Inbox, l.emptyScoops) {
-            FilledTonalButton(onClick = onRetry) { Text(l.retry) }
-        }
-    }
-    // Flat list: section headers interleaved with scoop cards, in sort order.
+    // Flat list: day headers interleaved with scoop cards, in sort order; each
+    // day's cards form one joined group.
     val entries = remember(scoops, sortMode, times, l) {
         val sorted = scoops.sortedWith { a, b ->
             val x = c.effTime(b, sortMode, times).compareTo(c.effTime(a, sortMode, times))
@@ -863,37 +968,82 @@ private fun Content(
         }
         val out = ArrayList<Entry>()
         var current: Bucket? = null
-        for (s in sorted) {
+        sorted.forEachIndexed { i, s ->
             val b = bucketOf(c.effTime(s, sortMode, times))
-            if (b != current) {
+            val startsGroup = b != current
+            if (startsGroup) {
                 current = b
-                out.add(Header(bucketLabel(b, l)))
+                out.add(Header(bucketLabel(b, l), first = out.isEmpty()))
             }
-            out.add(Item(s))
+            val next = sorted.getOrNull(i + 1)
+            val endsGroup = next == null || bucketOf(c.effTime(next, sortMode, times)) != b
+            out.add(Item(s, first = startsGroup, last = endsGroup))
         }
         out
     }
     val p = palette
+    val h = LocalConfiguration.current.screenHeightDp
     LazyColumn(
         state = c.listState,
         modifier = Modifier.fillMaxSize(),
-        // Top inset clears the overlaid (hideable) app bar; the bottom clears the
+        // Top inset clears the overlaid (hideable) header; the bottom clears the
         // translucent tab bar the list scrolls behind.
-        contentPadding = PaddingValues(top = BarHeight, bottom = bottomInset + 12.dp),
+        contentPadding = PaddingValues(top = HeaderHeight, bottom = bottomInset + 12.dp),
     ) {
+        item(contentType = "chips") { FilterChips(c) }
+        if (scoops.isEmpty()) {
+            item(contentType = "empty") {
+                // The chips stay above, so another filter is one tap away.
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Spacer(Modifier.height((h * 0.2f).dp))
+                    val (icon, text) = when {
+                        q.isNotEmpty() -> Icons.Rounded.SearchOff to l.noResults
+                        filter != ScoopFilter.all -> filterIcon(filter) to emptyText(filter, l)
+                        else -> Icons.Rounded.Inbox to l.emptyScoops
+                    }
+                    Icon(icon, null, tint = p.muted, modifier = Modifier.size(46.dp))
+                    Spacer(Modifier.height(12.dp))
+                    Text(text, style = TextStyle(color = p.muted))
+                    if (q.isEmpty()) {
+                        Spacer(Modifier.height(14.dp))
+                        if (filter != ScoopFilter.all) {
+                            FilledTonalButton(onClick = { c.filter = ScoopFilter.all }) { Text(l.filterShowAll) }
+                        } else {
+                            FilledTonalButton(onClick = onRetry) { Text(l.retry) }
+                        }
+                    }
+                }
+            }
+            return@LazyColumn
+        }
         // No item keys: like the Flutter list, rows keep their pixel position
         // when the order changes instead of following a moved item.
         itemsIndexed(entries, contentType = { _, e -> if (e is Header) 0 else 1 }) { _, e ->
             when (e) {
-                is Header -> Text(
-                    e.text,
-                    style = TextStyle(fontSize = 12.5.sp, fontWeight = FontWeight.W800, letterSpacing = 0.6.sp, color = p.muted),
-                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 6.dp),
-                )
+                is Header -> Row(
+                    Modifier.padding(start = 20.dp, end = 10.dp, top = if (e.first) 4.dp else 16.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        e.text,
+                        style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W800, letterSpacing = 0.4.sp, color = p.muted),
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (e.first) SortControl(c, onMarkAll)
+                }
                 is Item -> key(e.scoop.id) {
-                    Box(Modifier.padding(start = 14.dp, end = 14.dp, bottom = 10.dp)) {
+                    val big = 24.dp
+                    val small = 6.dp
+                    val shape = RoundedCornerShape(
+                        topStart = if (e.first) big else small,
+                        topEnd = if (e.first) big else small,
+                        bottomStart = if (e.last) big else small,
+                        bottomEnd = if (e.last) big else small,
+                    )
+                    Box(Modifier.padding(start = 14.dp, end = 14.dp, bottom = if (e.last) 0.dp else 3.dp)) {
                         SwipeRow(
                             scoop = e.scoop,
+                            shape = shape,
                             onToggleRead = { onToggleRead(e.scoop) },
                             onReply = { onReply(e.scoop) },
                             onOpen = { onOpen(e.scoop) },
@@ -933,6 +1083,7 @@ private fun MessageState(icon: ImageVector, text: String, action: (@Composable (
 @Composable
 private fun SwipeRow(
     scoop: Scoop,
+    shape: Shape,
     onToggleRead: () -> Unit,
     onReply: () -> Unit,
     onOpen: () -> Unit,
@@ -957,6 +1108,7 @@ private fun SwipeRow(
                 icon = if (replying) Icons.AutoMirrored.Rounded.Reply else if (read) Icons.Rounded.MarkEmailUnread else Icons.Rounded.CheckCircle,
                 label = if (replying) l.reply else if (read) l.markUnread else l.markRead,
                 alignStart = replying,
+                shape = shape,
                 modifier = Modifier.matchParentSize(),
             )
         }
@@ -981,16 +1133,16 @@ private fun SwipeRow(
                     },
                 ),
         ) {
-            ScoopCard(scoop, read, onOpen, onLongPress)
+            ScoopCard(scoop, read, shape, onOpen, onLongPress)
         }
     }
 }
 
 @Composable
-private fun SwipeBackground(color: Color, icon: ImageVector, label: String, alignStart: Boolean, modifier: Modifier) {
+private fun SwipeBackground(color: Color, icon: ImageVector, label: String, alignStart: Boolean, shape: Shape, modifier: Modifier) {
     Box(
         modifier
-            .background(color, RoundedCornerShape(20.dp))
+            .background(color, shape)
             .padding(horizontal = 22.dp),
         contentAlignment = if (alignStart) Alignment.CenterStart else Alignment.CenterEnd,
     ) {
@@ -1004,23 +1156,19 @@ private fun SwipeBackground(color: Color, icon: ImageVector, label: String, alig
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ScoopCard(scoop: Scoop, read: Boolean, onOpen: () -> Unit, onLongPress: () -> Unit) {
+private fun ScoopCard(scoop: Scoop, read: Boolean, shape: Shape, onOpen: () -> Unit, onLongPress: () -> Unit) {
     val p = palette
-    val accent = MaterialTheme.colorScheme.primary
     val mine = MyRepliesStore.replied(scoop.id)
     val cache = ScoopMetaCache.instance
     cache.observe(scoop.id)
     SideEffect { cache.ensure(scoop.id) }
-    val alpha by animateFloatAsState(if (read) 0.55f else 1f, tween(220), label = "read")
+    val alpha by animateFloatAsState(if (read) 0.6f else 1f, tween(220), label = "read")
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
-    val shape = RoundedCornerShape(20.dp)
     Box(
         Modifier
-            .alpha(alpha)
-            // A hardware (outline) shadow: a blurred one per card cost frames while scrolling.
-            .shadow(if (read) 1.dp else 3.dp, shape, ambientColor = Color.Black.copy(alpha = 0.25f), spotColor = Color.Black.copy(alpha = 0.25f))
             .clip(shape)
-            .background(p.surface)
+            // Read cards sit a tone down from unread ones, as well as fading.
+            .background(if (read) p.surface.copy(alpha = 0.55f).compositeOver(p.bg) else p.surface)
             .drawWithContent {
                 drawContent()
                 // Green side when the user has replied in this thread.
@@ -1030,33 +1178,24 @@ private fun ScoopCard(scoop: Scoop, read: Boolean, onOpen: () -> Unit, onLongPre
                 }
             }
             .combinedClickable(onClick = onOpen, onLongClick = onLongPress)
-            .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 14.dp),
+            .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp),
     ) {
-        Row(verticalAlignment = Alignment.Top) {
-            Box(
-                Modifier
-                    .padding(end = 11.dp, top = 7.dp)
-                    .size(9.dp)
-                    .background(if (read) p.muted.copy(alpha = 0.35f) else accent, CircleShape),
+        Column(Modifier.alpha(alpha)) {
+            PosterLine(scoop)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                scoop.title,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    lineHeight = 1.3.em,
+                    fontSize = 17.5.sp,
+                    fontWeight = if (read) FontWeight.W600 else FontWeight.W800,
+                    letterSpacing = (-0.2).sp,
+                ),
             )
-            Column(Modifier.weight(1f)) {
-                PosterLine(scoop)
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    scoop.title,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        lineHeight = 1.3.em,
-                        fontSize = 16.5.sp,
-                        fontWeight = if (read) FontWeight.W600 else FontWeight.W800,
-                        letterSpacing = (-0.2).sp,
-                    ),
-                )
-                Spacer(Modifier.height(9.dp))
-                MetaLine(scoop)
-            }
-            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, null, tint = p.muted)
+            Spacer(Modifier.height(4.dp))
+            CardFooter(scoop, read)
         }
     }
 }
@@ -1110,15 +1249,19 @@ private fun PosterLine(scoop: Scoop) {
     }
 }
 
-/** Saved · removed/new · replies · last activity — author/replies arrive lazily. */
+/**
+ * Status (new / new comments / read / removed) · replies · last activity, and
+ * the one-tap bookmark. Author and replies arrive lazily.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun MetaLine(scoop: Scoop) {
+private fun CardFooter(scoop: Scoop, read: Boolean) {
     val l = strings
     val p = palette
     val lang = LocalLanguage.current
-    val accent = MaterialTheme.colorScheme.primary
-    val style = TextStyle(fontSize = 12.5.sp, fontWeight = FontWeight.W600, color = p.muted)
+    val view = LocalView.current
+    val scheme = MaterialTheme.colorScheme
+    val style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W600, color = p.muted)
     val cache = ScoopMetaCache.instance
     val meta = cache.of(scoop.id)
     val pending = cache.isPending(scoop.id)
@@ -1128,30 +1271,50 @@ private fun MetaLine(scoop: Scoop) {
     // hasn't generated yet.
     val removed = cache.isUnavailable(scoop.id) && scoop.published != null &&
         System.currentTimeMillis() - scoop.published > 15 * 60_000
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-        itemVerticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (SavedStore.saved.contains(scoop.id)) {
-            Icon(Icons.Rounded.Bookmark, null, tint = accent, modifier = Modifier.size(15.dp))
+    val saved = SavedStore.saved.contains(scoop.id)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        FlowRow(
+            modifier = Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            itemVerticalAlignment = Alignment.CenterVertically,
+        ) {
+            when {
+                removed -> Pill(l.removedBadge, Danger, Icons.Rounded.DeleteOutline)
+                isNew -> Pill(l.newCommentsBadge, scheme.primary, null)
+                !read -> Pill(l.newBadge, scheme.primary, null)
+                else -> IconText(Icons.Rounded.DoneAll, l.markRead, style, p.muted)
+            }
+            if (meta?.replies != null) {
+                IconText(Icons.Outlined.ModeComment, "${meta.replies}", style, p.muted)
+            } else if (pending) {
+                Placeholder(30, 11)
+            }
+            // When the thread was last active — what "sort by last comment"
+            // orders on; a clock, so it doesn't read as another count.
+            if (meta?.lastComment != null) {
+                IconText(Icons.Rounded.Schedule, relTime(meta.lastComment, l, lang), style, p.muted)
+            } else if (pending) {
+                Placeholder(56, 11)
+            }
         }
-        if (removed) {
-            Pill(l.removedBadge, Danger, Icons.Rounded.DeleteOutline)
-        } else if (isNew) {
-            Pill(l.newBadge, accent, null)
-        }
-        if (meta?.replies != null) {
-            IconText(Icons.Outlined.ModeComment, "${meta.replies}", style, p.muted)
-        } else if (pending) {
-            Placeholder(30, 11)
-        }
-        // When the thread was last active — what "sort by last comment" orders
-        // on; a clock, so it doesn't read as another count.
-        if (meta?.lastComment != null) {
-            IconText(Icons.Rounded.Schedule, relTime(meta.lastComment, l, lang), style, p.muted)
-        } else if (pending) {
-            Placeholder(56, 11)
+        Box(
+            Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .clickable {
+                    view.selectionClick()
+                    SavedStore.saved.toggle(scoop)
+                }
+                .semantics { contentDescription = if (saved) l.unsaveScoop else l.saveScoop },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                if (saved) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
+                null,
+                tint = if (saved) scheme.primary else p.muted,
+                modifier = Modifier.size(22.dp),
+            )
         }
     }
 }
@@ -1160,15 +1323,15 @@ private fun MetaLine(scoop: Scoop) {
 private fun Pill(text: String, c: Color, icon: ImageVector?) {
     Row(
         Modifier
-            .background(c.copy(alpha = 0.13f), RoundedCornerShape(999.dp))
-            .padding(horizontal = 8.dp, vertical = 2.dp),
+            .background(c.copy(alpha = 0.15f), RoundedCornerShape(10.dp))
+            .padding(horizontal = 9.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (icon != null) {
             Icon(icon, null, tint = c, modifier = Modifier.size(12.dp))
             Spacer(Modifier.width(3.dp))
         }
-        Text(text, style = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.W800, color = c))
+        Text(text, style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.W800, color = c))
     }
 }
 

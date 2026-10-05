@@ -43,6 +43,11 @@ sealed class Route {
 
 class HomeRoute : Route() {
     val state = HomeState(this)
+
+    override fun onPopped() {
+        state.scoops.dispose()
+        super.onPopped()
+    }
 }
 
 class ThreadRoute(val scoop: Scoop) : Route() {
@@ -117,6 +122,20 @@ class Navigator {
     private fun finish(route: Route, result: Any?) {
         route.result?.complete(result)
         route.onPopped()
+    }
+
+    private var disposed = false
+
+    /**
+     * The activity is being destroyed: end every screen still on the stack —
+     * their work is cancelled, anything awaiting one of them gets null, and
+     * the home list stops listening to app-wide settings. Safe to call twice.
+     * (Covering a screen or backgrounding the app never gets here.)
+     */
+    fun dispose() {
+        if (disposed) return
+        disposed = true
+        for (route in backStack.toList().asReversed()) finish(route, null)
     }
 }
 

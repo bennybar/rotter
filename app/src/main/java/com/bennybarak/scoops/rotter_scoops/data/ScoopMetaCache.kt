@@ -77,10 +77,17 @@ class ScoopMetaCache(
         private const val FRESH_FOR_MS = 10 * 60_000L
         private const val MAX_PERSISTED = 400
         private const val RETRY_COOLDOWN_MS = 30_000L
+
+        /**
+         * A 404 is usually a deleted thread, but a brand-new one 404s until
+         * rotter generates its page: ask again after this long (and on pull).
+         */
+        const val NOT_FOUND_RETRY_MS = 2 * 60_000L
     }
 
     private val loaded = HashMap<String, ScoopMeta>()
     private val unavailable = HashSet<String>()
+    private val unavailableAt = HashMap<String, Long>()
     private val fetchedAt = HashMap<String, Long>()
     private val failedAt = HashMap<String, Long>()
     private val inFlight = HashSet<String>()
@@ -153,6 +160,7 @@ class ScoopMetaCache(
      */
     fun revalidate() {
         stale.addAll(loaded.keys)
+        stale.addAll(unavailable)
     }
 
     /** A card is on screen: move it to the head of the queue. */
@@ -185,12 +193,18 @@ class ScoopMetaCache(
         val failed = failedAt[id]
         if (failed != null && now() - failed <= RETRY_COOLDOWN_MS) return false
         if (stale.contains(id)) return true
-        if (unavailable.contains(id)) return false
+        if (unavailable.contains(id)) {
+            val at = unavailableAt[id]
+            return at == null || now() - at > NOT_FOUND_RETRY_MS
+        }
         if (!loaded.containsKey(id)) return true
         // Judged live, not only at launch — a session left open all afternoon
         // must not keep showing the morning's reply counts.
         val at = fetchedAt[id]
-        return at == null || now() - at > FRESH_FOR_MS
+        // A page caught mid-generation can come back without the poster: look
+        // again soon rather than showing a nameless card for the full window.
+        val window = if (loaded[id]?.author == null) RETRY_COOLDOWN_MS else FRESH_FOR_MS
+        return at == null || now() - at > window
     }
 
     private fun pump() {
@@ -213,6 +227,7 @@ class ScoopMetaCache(
                 val meta = ScoopMeta(m.author, m.authorPoints, m.replies, m.lastComment)
                 fetchedAt[id] = now()
                 failedAt.remove(id)
+                unavailableAt.remove(id)
                 if (unavailable.remove(id)) changed = true
                 if (loaded[id] != meta) {
                     loaded[id] = meta
@@ -227,6 +242,7 @@ class ScoopMetaCache(
                 throw e
             } catch (e: Exception) {
                 if (e is RotterHttpException && e.isNotFound) {
+                    unavailableAt[id] = now()
                     if (unavailable.add(id)) changed = true
                     if (loaded.remove(id) != null) {
                         scheduleOrdering()

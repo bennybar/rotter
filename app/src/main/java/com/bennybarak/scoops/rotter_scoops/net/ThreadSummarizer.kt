@@ -14,7 +14,26 @@ import java.util.concurrent.TimeUnit
 class SummaryException(override val message: String) : Exception(message)
 
 /** One scoop for the digest: its posting time (HH:MM), headline and main post. */
-class DigestItem(val time: String, val title: String, val bodyHtml: String?)
+class DigestItem(
+    val time: String,
+    val title: String,
+    val bodyHtml: String?,
+    val id: String = "", // the scoop's thread id
+    val published: Long? = null,
+)
+
+/** A scoop a digest drew on: its reference number in the transcript ([n]) and thread. */
+data class DigestSource(val ref: Int, val id: String, val title: String, val published: Long?)
+
+/** `[3]` / `[3, 7]` references the model puts at the end of a digest bullet. */
+private val refsRe = Regex("""\s*\[(\d+(?:\s*,\s*\d+)*)\]""")
+
+/** A digest line's text without its scoop references, and those references. */
+fun splitRefs(text: String): Pair<String, List<Int>> {
+    val refs = refsRe.findAll(text).flatMap { m -> m.groupValues[1].split(',').mapNotNull { it.trim().toIntOrNull() } }
+        .distinct().toList()
+    return text.replace(refsRe, "").trim() to refs
+}
 
 /**
  * Summarizes a thread (original post + comments) with an OpenAI-compatible
@@ -75,7 +94,7 @@ You summarize the latest scoops (breaking-news posts) from rotter.net, an Israel
 
 Write the summary in $language.
 
-Format it as Markdown. Group related scoops into topics, at most six. Give each topic a `## ` heading in $language, then `-` bullets, one per distinct development, newest first, starting with its posting time (HH:MM). Use `**bold**` for the key fact of each bullet. Merge scoops that report the same thing. Do not use tables, code blocks or other headings. Keep the whole digest under 400 words.
+Format it as Markdown. Group related scoops into topics, at most six. Give each topic a `## ` heading in $language, then `-` bullets, one per distinct development, newest first, starting with its posting time (HH:MM). Use `**bold**` for the key fact of each bullet. Merge scoops that report the same thing. Each scoop in the input starts with a reference number in square brackets, like [3]. End every bullet with the reference numbers of the scoops it is based on, in square brackets, e.g. [3] or [3, 7], and use them nowhere else. Do not use tables, code blocks or other headings. Keep the whole digest under 400 words, not counting the references.
 
 Do not invent details that are not in the posts. rotter scoops are often unverified first reports — describe them as reports, and say so plainly when posts contradict each other.""".removePrefix("\n")
 
@@ -86,12 +105,13 @@ Do not invent details that are not in the posts. rotter scoops are often unverif
          */
         private const val MAX_DIGEST_CHARS = 24000
 
+        /** Items are numbered from 1 in order; [n] is how the model refers back to them. */
         fun digestTranscript(items: List<DigestItem>): String {
             val out = StringBuilder()
             val perItem = (MAX_DIGEST_CHARS / maxOf(1, items.size) - 60).coerceIn(150, 700)
-            for (it in items) {
+            for ((i, it) in items.withIndex()) {
                 val body = it.bodyHtml?.let(::plain)?.take(perItem) ?: ""
-                val entry = "[${it.time}] ${it.title}\n$body".trim() + "\n\n"
+                val entry = "[${i + 1}] ${it.time} ${it.title}\n$body".trim() + "\n\n"
                 if (out.length + entry.length > MAX_DIGEST_CHARS) break
                 out.append(entry)
             }

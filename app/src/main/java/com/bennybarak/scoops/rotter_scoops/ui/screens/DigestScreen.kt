@@ -41,6 +41,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.bennybarak.scoops.rotter_scoops.ui.ThreadRoute
+import androidx.compose.runtime.remember
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
@@ -57,6 +63,8 @@ import com.bennybarak.scoops.rotter_scoops.data.Prefs
 import com.bennybarak.scoops.rotter_scoops.data.Scoop
 import com.bennybarak.scoops.rotter_scoops.data.SettingsController
 import com.bennybarak.scoops.rotter_scoops.net.DigestItem
+import com.bennybarak.scoops.rotter_scoops.net.DigestSource
+import com.bennybarak.scoops.rotter_scoops.net.splitRefs
 import com.bennybarak.scoops.rotter_scoops.net.RotterService
 import com.bennybarak.scoops.rotter_scoops.net.SummaryException
 import com.bennybarak.scoops.rotter_scoops.net.ThreadSummarizer
@@ -99,6 +107,7 @@ data class KeptDigest(
     val text: String,
     val loadMs: Long = 0, // fetching the posts
     val aiMs: Long = 0, // the model's answer
+    val sources: List<DigestSource> = emptyList(), // what each [n] in the text points at
 )
 
 /** Digests are kept this long; their scoops aren't summarized again meanwhile. */
@@ -144,6 +153,17 @@ class DigestState(private val scope: CoroutineScope, private val now: () -> Long
                     text = o.optString("text"),
                     loadMs = o.optLong("loadMs"),
                     aiMs = o.optLong("aiMs"),
+                    sources = o.optJSONArray("sources")?.let { a ->
+                        (0 until a.length()).mapNotNull { j ->
+                            val x = a.optJSONObject(j) ?: return@mapNotNull null
+                            DigestSource(
+                                x.optInt("ref"),
+                                x.optString("id"),
+                                x.optString("title"),
+                                if (x.has("published")) x.optLong("published") else null,
+                            )
+                        }
+                    } ?: emptyList(),
                 )
             }.filter { now() - it.at < DIGEST_KEEP_MS && it.text.isNotBlank() }
         } catch (_: Exception) {
@@ -161,7 +181,18 @@ class DigestState(private val scope: CoroutineScope, private val now: () -> Long
                     .put("ids", JSONArray(d.ids.toList()))
                     .put("text", d.text)
                     .put("loadMs", d.loadMs)
-                    .put("aiMs", d.aiMs),
+                    .put("aiMs", d.aiMs)
+                    .put(
+                        "sources",
+                        JSONArray().apply {
+                            for (src in d.sources) {
+                                put(
+                                    JSONObject().put("ref", src.ref).put("id", src.id).put("title", src.title)
+                                        .apply { src.published?.let { put("published", it) } },
+                                )
+                            }
+                        },
+                    ),
             )
         }
         Prefs.setString(KEY, a.toString())
@@ -230,7 +261,7 @@ class DigestState(private val scope: CoroutineScope, private val now: () -> Long
                         }
                         done++
                         progress = done to items.size
-                        DigestItem(clock.format(Date(s.published ?: 0L)), s.title, body)
+                        DigestItem(clock.format(Date(s.published ?: 0L)), s.title, body, s.id, s.published)
                     }
                 }.awaitAll().toMutableList()
                 // The RSS feed holds only the latest ~74 scoops (a few hours).
@@ -262,7 +293,7 @@ class DigestState(private val scope: CoroutineScope, private val now: () -> Long
                         val inside = roots.filter { (it.second.timestamp ?: 0L) >= since }
                         for ((id, r) in inside) {
                             ids.add(id.toString())
-                            digest.add(DigestItem(clock.format(Date(r.timestamp!!)), r.title ?: "", r.bodyHtml))
+                            digest.add(DigestItem(clock.format(Date(r.timestamp!!)), r.title ?: "", r.bodyHtml, id.toString(), r.timestamp))
                         }
                         if (roots.isNotEmpty() && inside.isEmpty()) break
                     }
@@ -282,7 +313,8 @@ class DigestState(private val scope: CoroutineScope, private val now: () -> Long
                 val t = now()
                 val loadMs = (loaded - started) / 1_000_000
                 val aiMs = (System.nanoTime() - loaded) / 1_000_000
-                kept = (listOf(KeptDigest(t, window, ids, text, loadMs, aiMs)) + kept).filter { t - it.at < DIGEST_KEEP_MS }
+                val sources = digest.mapIndexed { i, it -> DigestSource(i + 1, it.id, it.title, it.published) }
+                kept = (listOf(KeptDigest(t, window, ids, text, loadMs, aiMs, sources)) + kept).filter { t - it.at < DIGEST_KEEP_MS }
                 save()
             } catch (e: CancellationException) {
                 throw e
@@ -309,6 +341,9 @@ fun DigestScreen(s: DigestState, feed: List<Scoop>, feedLoading: Boolean, bottom
     val accent = MaterialTheme.colorScheme.primary
     val inRange = s.inWindow(feed, s.minutes)
     val covered = s.covered()
+    val since = System.currentTimeMillis() - s.minutes * 60_000L
+    // Kept digests narrowed to the selected window; empty ones drop out.
+    val shown = s.kept.map { it to visibleBlocks(it, since) }.filter { it.second.isNotEmpty() }
     val fresh = inRange.count { it.id !in covered }
     val oldest = feed.mapNotNull { it.published }.minOrNull()
 
@@ -317,7 +352,7 @@ fun DigestScreen(s: DigestState, feed: List<Scoop>, feedLoading: Boolean, bottom
             AppBar(
                 title = { BarTitle(l.digestTitle) },
                 actions = {
-                    val text = s.kept.firstOrNull()?.text
+                    val text = shown.takeIf { it.isNotEmpty() }?.joinToString("\n\n") { blocksToText(it.second) }
                     if (text != null && !s.running) {
                         IconButton(onClick = {
                             val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -440,16 +475,17 @@ fun DigestScreen(s: DigestState, feed: List<Scoop>, feedLoading: Boolean, bottom
                     // The kept digests, newest first; each covers only scoops the
                     // ones before it hadn't.
                     val clock = SimpleDateFormat("HH:mm", Locale.ROOT)
-                    s.kept.forEachIndexed { i, d ->
+                    // Only what the selected window covers.
+                    shown.forEachIndexed { i, (d, blocks) ->
                         item {
                             if (i > 0) Spacer(Modifier.height(18.dp))
+                            val inWindow = if (d.sources.isEmpty()) d.ids.size else d.sources.count { (it.published ?: 0L) >= since }
                             Text(
-                                l.digestMadeAt(clock.format(Date(d.at)), d.ids.size),
+                                l.digestMadeAt(clock.format(Date(d.at)), inWindow),
                                 style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W700, color = if (i == 0) accent else p.muted),
                             )
                         }
-                        val blocks = summaryBlocks(d.text)
-                        items(blocks.size) { j -> SelectionContainer { SummaryBlockView(blocks[j]) } }
+                        items(blocks.size) { j -> DigestBlock(blocks[j], d.sources) }
                         // How long it took, at its bottom (older kept digests have no timing).
                         if (d.loadMs + d.aiMs > 0) {
                             item {
@@ -461,7 +497,7 @@ fun DigestScreen(s: DigestState, feed: List<Scoop>, feedLoading: Boolean, bottom
                             }
                         }
                     }
-                    if (s.kept.isNotEmpty()) {
+                    if (shown.isNotEmpty()) {
                         item {
                             AiDisclaimer()
                             Spacer(Modifier.height(8.dp))
@@ -473,3 +509,92 @@ fun DigestScreen(s: DigestState, feed: List<Scoop>, feedLoading: Boolean, bottom
         }
     }
 }
+
+/**
+ * A digest line. Its scoop references are hidden; tapping the line opens the
+ * thread it's based on, or — when it merges several — a menu of them.
+ */
+@Composable
+private fun DigestBlock(b: SummaryBlock, sources: List<DigestSource>) {
+    val nav = LocalNav.current
+    val view = LocalView.current
+    val (text, refs) = remember(b.text) { splitRefs(b.text) }
+    val linked = refs.mapNotNull { r -> sources.firstOrNull { it.ref == r && it.id.isNotEmpty() } }
+    val shown = b.copy(text = text)
+    if (linked.isEmpty()) {
+        SelectionContainer { SummaryBlockView(shown) }
+        return
+    }
+    fun open(src: DigestSource) {
+        view.selectionClick()
+        nav.push(ThreadRoute(Scoop(src.id, src.title, RotterService.threadUrl(src.id), src.published)))
+    }
+    var menu by remember { mutableStateOf(false) }
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable { if (linked.size == 1) open(linked.first()) else menu = true },
+    ) {
+        SummaryBlockView(shown)
+        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            val clock = SimpleDateFormat("HH:mm", Locale.ROOT)
+            for (src in linked) {
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            (src.published?.let { clock.format(Date(it)) + " · " } ?: "") + src.title,
+                            maxLines = 2,
+                            style = TextStyle(fontSize = 14.sp),
+                        )
+                    },
+                    onClick = {
+                        menu = false
+                        open(src)
+                    },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The lines of [d] about scoops posted since [since] — what a narrower window
+ * than the digest was made for should show. A line counts by the posting
+ * times of the scoops it references; untagged lines (and digests from before
+ * references) count by when the digest was made. Headings stay only when a
+ * line under them does.
+ */
+fun visibleBlocks(d: KeptDigest, since: Long): List<SummaryBlock> {
+    val blocks = summaryBlocks(d.text)
+    val madeInside = d.at >= since
+    if (d.sources.isEmpty()) return if (madeInside) blocks else emptyList()
+    fun inside(b: SummaryBlock): Boolean {
+        val refs = splitRefs(b.text).second
+        val times = refs.mapNotNull { r -> d.sources.firstOrNull { it.ref == r }?.published }
+        return if (times.isEmpty()) madeInside else times.any { it >= since }
+    }
+    val out = ArrayList<SummaryBlock>()
+    var heading: SummaryBlock? = null
+    for (b in blocks) {
+        when (b.kind) {
+            SummaryBlockKind.heading -> heading = b
+            else -> if (inside(b)) {
+                heading?.let { out.add(it) }
+                heading = null
+                out.add(b)
+            }
+        }
+    }
+    return out
+}
+
+/** Blocks back to Markdown, without the scoop references (for copy / share). */
+fun blocksToText(blocks: List<SummaryBlock>): String = blocks.joinToString("\n") { b ->
+    val t = splitRefs(b.text).first
+    when (b.kind) {
+        SummaryBlockKind.heading -> "\n## $t"
+        SummaryBlockKind.item -> "${b.marker ?: "-"} $t"
+        SummaryBlockKind.paragraph -> t
+    }
+}.trim()

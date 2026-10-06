@@ -60,6 +60,38 @@ class DigestTest {
         assertEquals("Took 14.2 s (loading 2.1 s · AI 12.1 s)", com.bennybarak.scoops.rotter_scoops.ui.StringsEn.digestRuntime(d.loadMs + d.aiMs, d.loadMs, d.aiMs))
     }
 
+    @Test fun referencesAreHiddenAndParsed() {
+        val (text, refs) = com.bennybarak.scoops.rotter_scoops.net.splitRefs("12:04 **פיצוץ** בצפון [3, 7]")
+        assertEquals("12:04 **פיצוץ** בצפון", text)
+        assertEquals(listOf(3, 7), refs)
+        assertEquals("שקט" to emptyList<Int>(), com.bennybarak.scoops.rotter_scoops.net.splitRefs("שקט"))
+        val t = ThreadSummarizer.digestTranscript(listOf(DigestItem("12:00", "a", null), DigestItem("12:05", "b", null)))
+        assertTrue(t.startsWith("[1] 12:00 a") && t.contains("[2] 12:05 b"))
+    }
+
+    // A digest made for the last hour, viewed for the last 15 minutes, shows
+    // only the lines about scoops posted in those 15 minutes.
+    @Test fun shownLinesFollowTheSelectedWindow() {
+        val m = 60_000L
+        val src = listOf(
+            com.bennybarak.scoops.rotter_scoops.net.DigestSource(1, "a", "A", now - 5 * m),
+            com.bennybarak.scoops.rotter_scoops.net.DigestSource(2, "b", "B", now - 50 * m),
+        )
+        val d = com.bennybarak.scoops.rotter_scoops.ui.screens.KeptDigest(
+            now - 2 * m, 60, setOf("a", "b"),
+            "## North\n- recent [1]\n## South\n- older [2]\n- both [1, 2]", sources = src,
+        )
+        fun texts(since: Long) = com.bennybarak.scoops.rotter_scoops.ui.screens.visibleBlocks(d, since).map { it.text }
+        assertEquals(listOf("North", "recent [1]", "South", "both [1, 2]"), texts(now - 15 * m))
+        assertEquals(5, texts(now - 60 * m).size)
+        assertTrue(texts(now - 1 * m).isEmpty())
+        // Persisted with the digest, so taps still open threads after a restart.
+        val prefs = com.bennybarak.scoops.rotter_scoops.data.Prefs
+        prefs.setString("digests", "[]")
+        val state = DigestState(TestScope()) { now }
+        assertTrue(state.kept.isEmpty())
+    }
+
     @Test fun rangeIsFiveMinutesToADay() {
         assertEquals(5, DIGEST_STOPS.first())
         assertEquals(24 * 60, DIGEST_STOPS.last())
@@ -69,7 +101,7 @@ class DigestTest {
     @Test fun transcriptIsMainPostsOnlyAndCapped() {
         val items = (1..80).map { DigestItem("12:${it % 60}", "headline $it", "<b>" + "x".repeat(2000) + "</b>") }
         val t = ThreadSummarizer.digestTranscript(items)
-        assertTrue(t.startsWith("[12:1] headline 1"))
+        assertTrue(t.startsWith("[1] 12:1 headline 1"))
         assertTrue(t.length <= 24_000)
         assertTrue(!t.contains("<b>"))
         // Every headline makes it in, even for a full day of scoops.

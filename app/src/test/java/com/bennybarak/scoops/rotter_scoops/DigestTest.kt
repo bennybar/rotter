@@ -12,11 +12,37 @@ import org.junit.Test
 
 class DigestTest {
     private val now = 1_800_000_000_000L
+
+    @org.junit.Before fun setUp() {
+        com.bennybarak.scoops.rotter_scoops.data.Prefs.backend = com.bennybarak.scoops.rotter_scoops.data.MapKeyValue()
+    }
+
+    // Digests are kept for a day: a scoop one of them covered isn't sent again.
+    @Test fun keptDigestsCoverTheirScoopsForADay() {
+        val prefs = com.bennybarak.scoops.rotter_scoops.data.Prefs
+        val h = 60 * 60_000L
+        prefs.setString(
+            "digests",
+            """[{"at":${now - 2 * h},"minutes":60,"ids":["b","c"],"text":"## x"},""" +
+                """{"at":${now - 25 * h},"minutes":60,"ids":["old"],"text":"## y"}]""",
+        )
+        val s = DigestState(TestScope()) { now }
+        assertEquals(1, s.kept.size) // the 25-hour-old one is gone
+        assertEquals(setOf("b", "c"), s.covered())
+        // Everything in the window already digested: no request, "up to date".
+        val feed = listOf(scoop("b", 20), scoop("c", 40), scoop("x", 90)) // the feed reaches past the hour
+        s.run(feed, com.bennybarak.scoops.rotter_scoops.ui.StringsEn)
+        assertTrue(s.upToDate)
+        assertTrue(!s.running)
+        s.startOver()
+        assertTrue(s.covered().isEmpty())
+        assertEquals("[]", prefs.getString("digests"))
+    }
     private fun scoop(id: String, minutesAgo: Int?) =
         Scoop(id, "t$id", "u", minutesAgo?.let { now - it * 60_000L })
 
     @Test fun windowIsByPostingTimeNewestFirst() {
-        val s = DigestState(TestScope())
+        val s = DigestState(TestScope()) { now }
         // "old" may well have a fresh comment — it was still POSTED 3 hours ago.
         val feed = listOf(scoop("old", 180), scoop("b", 20), scoop("a", 4), scoop("none", null), scoop("c", 59))
         assertEquals(listOf("a", "b", "c"), s.inWindow(feed, 60, now).map { it.id })

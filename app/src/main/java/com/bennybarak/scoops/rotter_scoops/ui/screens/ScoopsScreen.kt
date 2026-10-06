@@ -364,6 +364,18 @@ class ScoopsController(private val scope: CoroutineScope) {
         meta.prefetch(first + scoops.filter { ReadStore.isRead(it.id) && it.id !in first }.map { it.id })
     }
 
+    /**
+     * Fetch the latest feed now and show it (no "new scoops" pill): the digest
+     * tab's catch-up. Joins a load already in flight.
+     */
+    fun catchUp() {
+        scope.launch {
+            load()
+            applyPending()
+            android.util.Log.d("Scoops", "digest catch-up: ${loaded.size} scoops")
+        }
+    }
+
     suspend fun refresh() {
         // Re-fetch card meta even inside its freshness window — a manual pull
         // should always update. Old values stay on screen until replaced.

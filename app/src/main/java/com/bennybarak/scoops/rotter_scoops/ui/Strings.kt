@@ -3,6 +3,11 @@ package com.bennybarak.scoops.rotter_scoops.ui
 // Ported from the Flutter build's app_en.arb / app_he.arb.
 
 abstract class Strings {
+    abstract val digestUpToDate: String
+    abstract val digestStartOver: String
+    abstract val digestUpdating: String
+    abstract fun digestNewCount(n: Int): String
+    abstract fun digestMadeAt(time: String, n: Int): String
     abstract val listTextSize: String
     abstract val articleTextSize: String
     abstract val digestOlderLoaded: String
@@ -189,6 +194,11 @@ abstract class Strings {
 }
 
 object StringsEn : Strings() {
+    override val digestUpToDate = "Everything in this range is already summarized below."
+    override val digestStartOver = "Summarize all again"
+    override val digestUpdating = "Getting the latest scoops…"
+    override fun digestNewCount(n: Int) = "$n new"
+    override fun digestMadeAt(time: String, n: Int) = "Digest from $time · " + (if (n == 1) "1 scoop" else "$n scoops")
     override val listTextSize = "List text size"
     override val articleTextSize = "Article text size"
     override val digestOlderLoaded = "older scoops are loaded when you summarize"
@@ -391,6 +401,11 @@ object StringsEn : Strings() {
 }
 
 object StringsHe : Strings() {
+    override val digestUpToDate = "כל הסקופים בטווח הזה כבר סוכמו למטה."
+    override val digestStartOver = "סכם הכל מחדש"
+    override val digestUpdating = "מעדכן סקופים…"
+    override fun digestNewCount(n: Int) = "$n חדשים"
+    override fun digestMadeAt(time: String, n: Int) = "סיכום מ-$time · " + (if (n == 1) "סקופ אחד" else "$n סקופים")
     override val listTextSize = "גודל טקסט ברשימה"
     override val articleTextSize = "גודל טקסט בכתבה"
     override val digestOlderLoaded = "סקופים ישנים יותר ייטענו בזמן הסיכום"

@@ -31,6 +31,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -123,9 +125,24 @@ const val DIGEST_KEEP_MS = 24 * 60 * 60_000L
 class DigestState(private val scope: CoroutineScope, private val now: () -> Long = System::currentTimeMillis) {
     companion object {
         private const val KEY = "digests"
+        private const val NEW_ONLY_KEY = "digest_new_only"
     }
 
     var stop by mutableIntStateOf(DIGEST_STOPS.indexOf(60))
+
+    /**
+     * Show only the newest digest run (what's new since the previous digest),
+     * not the earlier ones still kept. Remembered until changed.
+     */
+    var newOnly by mutableStateOf(Prefs.getBool(NEW_ONLY_KEY) ?: false); private set
+
+    fun setNewOnlyAndSave(v: Boolean) {
+        newOnly = v
+        Prefs.setBool(NEW_ONLY_KEY, v)
+    }
+
+    /** The kept digests the screen considers: all of them, or just the newest. */
+    fun considered(): List<KeptDigest> = if (newOnly) kept.take(1) else kept
     val minutes get() = DIGEST_STOPS[stop]
 
     var running by mutableStateOf(false); private set
@@ -343,7 +360,7 @@ fun DigestScreen(s: DigestState, feed: List<Scoop>, feedLoading: Boolean, bottom
     val covered = s.covered()
     val since = System.currentTimeMillis() - s.minutes * 60_000L
     // Kept digests narrowed to the selected window; empty ones drop out.
-    val shown = s.kept.map { it to visibleBlocks(it, since) }.filter { it.second.isNotEmpty() }
+    val shown = s.considered().map { it to visibleBlocks(it, since) }.filter { it.second.isNotEmpty() }
     val fresh = inRange.count { it.id !in covered }
     val oldest = feed.mapNotNull { it.published }.minOrNull()
 
@@ -423,6 +440,25 @@ fun DigestScreen(s: DigestState, feed: List<Scoop>, feedLoading: Boolean, bottom
                         Text(
                             "${l.digestFeedReach} ${relTime(oldest, l, lang)} · ${l.digestOlderLoaded}",
                             style = TextStyle(fontSize = 12.5.sp, color = p.muted, lineHeight = 1.4.em),
+                        )
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    // New only: just the latest run, not earlier digests.
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { s.setNewOnlyAndSave(!s.newOnly) },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(l.digestNewOnly, style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = p.ink))
+                            Text(l.digestNewOnlyHint, style = TextStyle(fontSize = 12.5.sp, color = p.muted))
+                        }
+                        Switch(
+                            checked = s.newOnly,
+                            onCheckedChange = s::setNewOnlyAndSave,
+                            colors = SwitchDefaults.colors(checkedTrackColor = accent),
                         )
                     }
                     Spacer(Modifier.height(14.dp))

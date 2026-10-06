@@ -6,6 +6,8 @@ package com.bennybarak.scoops.rotter_scoops.ui
 internal fun secs(ms: Long) = String.format(java.util.Locale.ROOT, "%.1f", ms / 1000.0)
 
 abstract class Strings {
+    abstract val digestNewOnly: String
+    abstract val digestNewOnlyHint: String
     abstract fun digestRuntime(totalMs: Long, loadMs: Long, aiMs: Long): String
     abstract val digestUpToDate: String
     abstract val digestStartOver: String
@@ -198,6 +200,8 @@ abstract class Strings {
 }
 
 object StringsEn : Strings() {
+    override val digestNewOnly = "New only"
+    override val digestNewOnlyHint = "Only what's new since the previous digest"
     override fun digestRuntime(totalMs: Long, loadMs: Long, aiMs: Long) =
         "Took ${secs(totalMs)} s (loading ${secs(loadMs)} s · AI ${secs(aiMs)} s)"
     override val digestUpToDate = "Everything in this range is already summarized below."
@@ -407,6 +411,8 @@ object StringsEn : Strings() {
 }
 
 object StringsHe : Strings() {
+    override val digestNewOnly = "חדשים בלבד"
+    override val digestNewOnlyHint = "רק מה שנוסף מאז הסיכום הקודם"
     override fun digestRuntime(totalMs: Long, loadMs: Long, aiMs: Long) =
         "נוצר ב-${secs(totalMs)} שניות (טעינה ${secs(loadMs)} · AI ${secs(aiMs)})"
     override val digestUpToDate = "כל הסקופים בטווח הזה כבר סוכמו למטה."

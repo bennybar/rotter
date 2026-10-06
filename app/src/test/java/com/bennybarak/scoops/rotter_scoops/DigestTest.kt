@@ -92,6 +92,23 @@ class DigestTest {
         assertTrue(state.kept.isEmpty())
     }
 
+    // "New only" shows just the newest run, and is remembered.
+    @Test fun newOnlyShowsTheLatestRunAndPersists() {
+        val prefs = com.bennybarak.scoops.rotter_scoops.data.Prefs
+        prefs.setString(
+            "digests",
+            """[{"at":${now - 60_000},"minutes":60,"ids":["b"],"text":"## new"},""" +
+                """{"at":${now - 3_600_000},"minutes":60,"ids":["a"],"text":"## old"}]""",
+        )
+        val s = DigestState(TestScope()) { now }
+        assertEquals(2, s.considered().size)
+        s.setNewOnlyAndSave(true)
+        assertEquals(listOf("## new"), s.considered().map { it.text })
+        assertTrue(DigestState(TestScope()) { now }.newOnly) // kept for next time
+        s.setNewOnlyAndSave(false)
+        assertTrue(!DigestState(TestScope()) { now }.newOnly)
+    }
+
     @Test fun rangeIsFiveMinutesToADay() {
         assertEquals(5, DIGEST_STOPS.first())
         assertEquals(24 * 60, DIGEST_STOPS.last())

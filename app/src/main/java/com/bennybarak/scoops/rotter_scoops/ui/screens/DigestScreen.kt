@@ -43,6 +43,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.Lifecycle
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.ExperimentalMaterial3Api
 import com.bennybarak.scoops.rotter_scoops.ui.ThreadRoute
 import androidx.compose.runtime.remember
 import androidx.compose.material3.DropdownMenuItem
@@ -347,8 +352,21 @@ class DigestState(private val scope: CoroutineScope, private val now: () -> Long
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DigestScreen(s: DigestState, feed: List<Scoop>, feedLoading: Boolean, bottomInset: Dp) {
+fun DigestScreen(
+    s: DigestState,
+    feed: List<Scoop>,
+    feedNow: () -> List<Scoop>,
+    feedLoading: Boolean,
+    catchUp: suspend () -> Unit,
+    bottomInset: Dp,
+) {
+    val ui = rememberCoroutineScope()
+    // Catch up whenever the page is shown — switching to the tab or coming
+    // back to the app on it — so its window includes the latest scoops.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { ui.launch { catchUp() } }
+    var refreshing by remember { mutableStateOf(false) }
     val l = strings
     val p = palette
     val lang = LocalLanguage.current
@@ -382,6 +400,20 @@ fun DigestScreen(s: DigestState, feed: List<Scoop>, feedLoading: Boolean, bottom
             )
         },
     ) {
+        PullToRefreshBox(
+            isRefreshing = refreshing,
+            onRefresh = {
+                ui.launch {
+                    refreshing = true
+                    try {
+                        catchUp()
+                    } finally {
+                        refreshing = false
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxSize(),
+        ) {
         LazyColumn(
             Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 28.dp + bottomInset),
@@ -468,7 +500,13 @@ fun DigestScreen(s: DigestState, feed: List<Scoop>, feedLoading: Boolean, bottom
                         FilledTonalButton(onClick = { nav.push(AISettingsRoute()) }) { Text(l.aiSection) }
                     } else {
                         Button(
-                            onClick = { s.run(feed, l) },
+                            // Catch up first, so the run never works from an old list.
+                            onClick = {
+                                ui.launch {
+                                    catchUp()
+                                    s.run(feedNow(), l)
+                                }
+                            },
                             enabled = (fresh > 0 || s.needsOlder(feed, s.minutes)) && !s.running,
                             modifier = Modifier.fillMaxWidth().height(52.dp),
                         ) {
@@ -542,6 +580,7 @@ fun DigestScreen(s: DigestState, feed: List<Scoop>, feedLoading: Boolean, bottom
                     }
                 }
             }
+        }
         }
     }
 }

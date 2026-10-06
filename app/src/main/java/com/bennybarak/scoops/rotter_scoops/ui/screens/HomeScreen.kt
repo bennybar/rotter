@@ -83,12 +83,6 @@ fun HomeScreen(route: HomeRoute) {
     val accent = MaterialTheme.colorScheme.primary
     val bottomInset = TabBarHeight + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
-    // Opening the digest catches up first: fetch the latest feed so its window
-    // includes scoops posted a moment ago.
-    LaunchedEffect(s.index) {
-        if (s.index == 2) s.scoops.catchUp()
-    }
-
     // Back from another tab returns to Scoops first, rather than leaving the app.
     BackHandler(enabled = s.index != 0) { s.index = 0 }
 
@@ -96,7 +90,14 @@ fun HomeScreen(route: HomeRoute) {
         when (s.index) {
             0 -> ScoopsScreen(s.scoops, bottomInset)
             1 -> NewMessageScreen(s.compose, bottomInset)
-            2 -> DigestScreen(s.digest, s.scoops.loaded, s.scoops.feedLoading, bottomInset)
+            2 -> DigestScreen(
+                s.digest,
+                feed = s.scoops.loaded,
+                feedNow = { s.scoops.loaded },
+                feedLoading = s.scoops.feedLoading,
+                catchUp = s.scoops::catchUp,
+                bottomInset = bottomInset,
+            )
             else -> SettingsScreen(bottomInset)
         }
         val items = listOf(

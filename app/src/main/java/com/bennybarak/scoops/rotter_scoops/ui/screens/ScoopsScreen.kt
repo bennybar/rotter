@@ -368,12 +368,12 @@ class ScoopsController(private val scope: CoroutineScope) {
      * Fetch the latest feed now and show it (no "new scoops" pill): the digest
      * tab's catch-up. Joins a load already in flight.
      */
-    fun catchUp() {
-        scope.launch {
-            load()
-            applyPending()
-            android.util.Log.d("Scoops", "digest catch-up: ${loaded.size} scoops")
-        }
+    suspend fun catchUp() {
+        load()
+        // A feed held back behind the list's "new scoops" pill (fetched on
+        // return from the background) is applied too: the digest needs it now.
+        applyPending()
+        android.util.Log.d("Scoops", "digest catch-up: ${loaded.size} scoops")
     }
 
     suspend fun refresh() {

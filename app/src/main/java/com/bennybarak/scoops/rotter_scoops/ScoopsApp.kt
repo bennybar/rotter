@@ -19,6 +19,7 @@ import com.bennybarak.scoops.rotter_scoops.data.ScoopMetaCache
 import com.bennybarak.scoops.rotter_scoops.data.SecureStore
 import com.bennybarak.scoops.rotter_scoops.data.SettingsController
 import com.bennybarak.scoops.rotter_scoops.net.Http
+import com.bennybarak.scoops.rotter_scoops.net.PageCache
 import com.bennybarak.scoops.rotter_scoops.net.RotterGated
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
@@ -32,6 +33,7 @@ class ScoopsApp : Application(), ImageLoaderFactory {
         Prefs.init(this)
         SecureStore.init(this)
         DiskCache.dir = cacheDir
+        PageCache.dir = java.io.File(cacheDir, "pages")
         RotterGated.appContext = this
         // Everything the first frame reads, loaded before it (as the Flutter
         // build did before runApp) — small, local reads.

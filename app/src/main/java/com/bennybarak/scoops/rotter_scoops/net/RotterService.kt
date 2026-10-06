@@ -75,14 +75,41 @@ object RotterService {
     suspend fun fetchCardMeta(id: String): CardMeta {
         val bytes = getBytes(threadUrl(id))
         // Decode + scan OFF the main thread, otherwise each card drops frames.
-        return withContext(Dispatchers.Default) { parseCardMeta(decodeWin1255(bytes)) }
+        return withContext(Dispatchers.Default) {
+            PageCache.put(id, bytes)
+            parseCardMeta(decodeWin1255(bytes))
+        }
     }
 
     // ---- Thread + comments (.shtml) -----------------------------------------
 
     suspend fun fetchThread(id: String): Thread {
         val bytes = getBytes(threadUrl(id))
-        return withContext(Dispatchers.Default) { parseThread(decodeWin1255(bytes), id) }
+        return withContext(Dispatchers.Default) {
+            PageCache.put(id, bytes)
+            parseThread(decodeWin1255(bytes), id)
+        }
+    }
+
+    /**
+     * The thread from a page fetched within [maxAgeMs] — the list downloads
+     * every thread's page for its card anyway — or null. Lets a thread open
+     * instantly while the live page is fetched behind it.
+     */
+    suspend fun cachedThread(id: String, maxAgeMs: Long): Thread? = withContext(Dispatchers.Default) {
+        val start = System.nanoTime()
+        val bytes = PageCache.get(id, maxAgeMs)
+        if (bytes == null) {
+            android.util.Log.d("RotterService", "page cache miss $id")
+            return@withContext null
+        }
+        try {
+            parseThread(decodeWin1255(bytes), id).also {
+                android.util.Log.d("RotterService", "page cache hit $id in ${(System.nanoTime() - start) / 1_000_000}ms")
+            }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private val digits = Regex("""^\d+$""")

@@ -167,6 +167,9 @@ class ThreadState(val scoop: Scoop, private val scope: CoroutineScope) {
     companion object {
         private const val HINT_KEY = "threadNavigationExplained"
 
+        /** How old a page the list fetched may be and still open the thread. */
+        private const val CACHED_PAGE_MAX_AGE_MS = 30 * 60_000L
+
         /** Bodies parsed before the thread is shown (a few screens' worth). */
         private const val WARM_FIRST = 30
 
@@ -220,7 +223,12 @@ class ThreadState(val scoop: Scoop, private val scope: CoroutineScope) {
     var tick: () -> Unit = {}
 
     init {
-        scope.launch { load() }
+        scope.launch {
+            // Show the copy of the page the list fetched for this card, at
+            // once, then the live page as soon as it arrives.
+            RotterService.cachedThread(scoop.id, CACHED_PAGE_MAX_AGE_MS)?.let { publish(it) }
+            load()
+        }
     }
 
     fun toggleCollapse(num: Int) {
@@ -341,6 +349,21 @@ class ThreadState(val scoop: Scoop, private val scope: CoroutineScope) {
             // A newer load (pull to refresh, post-reply refresh) started while
             // this one was in flight: let that one publish.
             if (generation != loadGeneration) return
+            publish(t)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            if (generation != loadGeneration) return
+            // A thread already on screen (from the list's copy) stays shown.
+            error = e
+            loading = false
+        }
+    }
+
+    /** Put [t] on screen: layout warm-up, visit bookkeeping, new markers, resume offer. */
+    private suspend fun publish(t: Thread) {
+        val id = scoop.id
+        run {
             // Parse the first screenfuls' bodies off the main thread before
             // showing the thread (so its first frames don't), and the rest
             // after it is on screen — never the whole thread up front, which
@@ -378,12 +401,6 @@ class ThreadState(val scoop: Scoop, private val scope: CoroutineScope) {
                 }
             }
             if (searching) runSearch(searchText)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            if (generation != loadGeneration) return
-            error = e
-            loading = false
         }
     }
 

@@ -52,6 +52,14 @@ class DigestTest {
         assertTrue(!s.needsOlder(feed, 60, now))
     }
 
+    @Test fun runtimeIsKeptAndShown() {
+        val prefs = com.bennybarak.scoops.rotter_scoops.data.Prefs
+        prefs.setString("digests", """[{"at":$now,"minutes":60,"ids":["a"],"text":"## x","loadMs":2100,"aiMs":12140}]""")
+        val d = DigestState(TestScope()) { now }.kept.single()
+        assertEquals(2100L, d.loadMs)
+        assertEquals("Took 14.2 s (loading 2.1 s · AI 12.1 s)", com.bennybarak.scoops.rotter_scoops.ui.StringsEn.digestRuntime(d.loadMs + d.aiMs, d.loadMs, d.aiMs))
+    }
+
     @Test fun rangeIsFiveMinutesToADay() {
         assertEquals(5, DIGEST_STOPS.first())
         assertEquals(24 * 60, DIGEST_STOPS.last())

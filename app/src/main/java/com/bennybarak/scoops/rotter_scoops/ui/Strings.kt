@@ -2,7 +2,11 @@ package com.bennybarak.scoops.rotter_scoops.ui
 
 // Ported from the Flutter build's app_en.arb / app_he.arb.
 
+/** Milliseconds as seconds with one decimal ("12.4"). */
+internal fun secs(ms: Long) = String.format(java.util.Locale.ROOT, "%.1f", ms / 1000.0)
+
 abstract class Strings {
+    abstract fun digestRuntime(totalMs: Long, loadMs: Long, aiMs: Long): String
     abstract val digestUpToDate: String
     abstract val digestStartOver: String
     abstract val digestUpdating: String
@@ -194,6 +198,8 @@ abstract class Strings {
 }
 
 object StringsEn : Strings() {
+    override fun digestRuntime(totalMs: Long, loadMs: Long, aiMs: Long) =
+        "Took ${secs(totalMs)} s (loading ${secs(loadMs)} s · AI ${secs(aiMs)} s)"
     override val digestUpToDate = "Everything in this range is already summarized below."
     override val digestStartOver = "Summarize all again"
     override val digestUpdating = "Getting the latest scoops…"
@@ -401,6 +407,8 @@ object StringsEn : Strings() {
 }
 
 object StringsHe : Strings() {
+    override fun digestRuntime(totalMs: Long, loadMs: Long, aiMs: Long) =
+        "נוצר ב-${secs(totalMs)} שניות (טעינה ${secs(loadMs)} · AI ${secs(aiMs)})"
     override val digestUpToDate = "כל הסקופים בטווח הזה כבר סוכמו למטה."
     override val digestStartOver = "סכם הכל מחדש"
     override val digestUpdating = "מעדכן סקופים…"

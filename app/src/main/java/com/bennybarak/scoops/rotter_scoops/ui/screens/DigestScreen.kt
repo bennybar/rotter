@@ -92,7 +92,14 @@ private const val MAX_OLDER = 400
 val DIGEST_STOPS = listOf(5, 10, 15, 30, 45, 60, 90, 120, 180, 240, 360, 480, 720, 960, 1200, 1440)
 
 /** A digest made earlier, kept for [DIGEST_KEEP_MS]: what it covered and its text. */
-data class KeptDigest(val at: Long, val minutes: Int, val ids: Set<String>, val text: String)
+data class KeptDigest(
+    val at: Long,
+    val minutes: Int,
+    val ids: Set<String>,
+    val text: String,
+    val loadMs: Long = 0, // fetching the posts
+    val aiMs: Long = 0, // the model's answer
+)
 
 /** Digests are kept this long; their scoops aren't summarized again meanwhile. */
 const val DIGEST_KEEP_MS = 24 * 60 * 60_000L
@@ -135,6 +142,8 @@ class DigestState(private val scope: CoroutineScope, private val now: () -> Long
                     minutes = o.optInt("minutes"),
                     ids = (0 until ids.length()).map { ids.getString(it) }.toSet(),
                     text = o.optString("text"),
+                    loadMs = o.optLong("loadMs"),
+                    aiMs = o.optLong("aiMs"),
                 )
             }.filter { now() - it.at < DIGEST_KEEP_MS && it.text.isNotBlank() }
         } catch (_: Exception) {
@@ -150,7 +159,9 @@ class DigestState(private val scope: CoroutineScope, private val now: () -> Long
                     .put("at", d.at)
                     .put("minutes", d.minutes)
                     .put("ids", JSONArray(d.ids.toList()))
-                    .put("text", d.text),
+                    .put("text", d.text)
+                    .put("loadMs", d.loadMs)
+                    .put("aiMs", d.aiMs),
             )
         }
         Prefs.setString(KEY, a.toString())
@@ -196,6 +207,7 @@ class DigestState(private val scope: CoroutineScope, private val now: () -> Long
             error = null
             upToDate = false
             progress = 0 to items.size
+            val started = System.nanoTime()
             try {
                 val key = AIStore.apiKey() ?: throw SummaryException(l.aiErrorNotConfigured)
                 val since = now() - window * 60_000L
@@ -260,6 +272,7 @@ class DigestState(private val scope: CoroutineScope, private val now: () -> Long
                     return@launch
                 }
                 summarizing = true
+                val loaded = System.nanoTime()
                 val text = ThreadSummarizer(
                     apiKey = key,
                     model = AIStore.model,
@@ -267,7 +280,9 @@ class DigestState(private val scope: CoroutineScope, private val now: () -> Long
                     language = AIStore.promptLanguage(SettingsController.locale),
                 ).summarizeDigest(digest, "$window minutes")
                 val t = now()
-                kept = (listOf(KeptDigest(t, window, ids, text)) + kept).filter { t - it.at < DIGEST_KEEP_MS }
+                val loadMs = (loaded - started) / 1_000_000
+                val aiMs = (System.nanoTime() - loaded) / 1_000_000
+                kept = (listOf(KeptDigest(t, window, ids, text, loadMs, aiMs)) + kept).filter { t - it.at < DIGEST_KEEP_MS }
                 save()
             } catch (e: CancellationException) {
                 throw e
@@ -435,6 +450,16 @@ fun DigestScreen(s: DigestState, feed: List<Scoop>, feedLoading: Boolean, bottom
                         }
                         val blocks = summaryBlocks(d.text)
                         items(blocks.size) { j -> SelectionContainer { SummaryBlockView(blocks[j]) } }
+                        // How long it took, at its bottom (older kept digests have no timing).
+                        if (d.loadMs + d.aiMs > 0) {
+                            item {
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    l.digestRuntime(d.loadMs + d.aiMs, d.loadMs, d.aiMs),
+                                    style = TextStyle(fontSize = 12.sp, color = p.muted),
+                                )
+                            }
+                        }
                     }
                     if (s.kept.isNotEmpty()) {
                         item {

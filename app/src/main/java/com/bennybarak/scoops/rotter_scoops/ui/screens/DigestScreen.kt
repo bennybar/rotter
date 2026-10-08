@@ -94,6 +94,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import java.text.SimpleDateFormat
@@ -245,20 +247,52 @@ class DigestState(private val scope: CoroutineScope, private val now: () -> Long
         return oldest > now - minutes * 60_000L
     }
 
-    fun run(feed: List<Scoop>, l: Strings) {
+    /** True while a run brings the feed up to date before summarizing. */
+    var syncing by mutableStateOf(false); private set
+
+    /**
+     * Start a digest at once: the tap always responds. A feed older than a
+     * minute is brought up to date first, inside the run (shown as such) and
+     * for at most 5 seconds — after that it goes on with the feed it has.
+     */
+    fun run(feedNow: () -> List<Scoop>, catchUp: suspend () -> Unit, feedFresh: Boolean, l: Strings) {
         if (running) return
         val window = minutes
-        val done0 = covered()
-        val items = inWindow(feed, window).filter { it.id !in done0 }
-        if (items.isEmpty() && !needsOlder(feed, window)) {
-            upToDate = true
-            return
-        }
         job?.cancel()
+        running = true
+        error = null
+        upToDate = false
         job = scope.launch {
+            try {
+                if (!feedFresh) {
+                    syncing = true
+                    withTimeoutOrNull(5_000) { catchUp() }
+                    syncing = false
+                }
+                val feed = feedNow()
+                val done0 = covered()
+                val items = inWindow(feed, window).filter { it.id !in done0 }
+                if (items.isEmpty() && !needsOlder(feed, window)) {
+                    upToDate = true
+                    return@launch
+                }
+                runDigest(feed, items, done0, window, l)
+            } finally {
+                syncing = false
+                running = false
+            }
+        }
+    }
+
+    private suspend fun runDigest(
+        feed: List<Scoop>,
+        items: List<Scoop>,
+        done0: Set<String>,
+        window: Int,
+        l: Strings,
+    ) = coroutineScope {
+        run {
             running = true
-            error = null
-            upToDate = false
             progress = 0 to items.size
             val started = System.nanoTime()
             try {
@@ -322,7 +356,7 @@ class DigestState(private val scope: CoroutineScope, private val now: () -> Long
                 }
                 if (digest.isEmpty()) {
                     upToDate = true
-                    return@launch
+                    return@run
                 }
                 summarizing = true
                 val loaded = System.nanoTime()
@@ -359,6 +393,7 @@ fun DigestScreen(
     feed: List<Scoop>,
     feedNow: () -> List<Scoop>,
     feedLoading: Boolean,
+    feedFresh: () -> Boolean,
     catchUp: suspend () -> Unit,
     bottomInset: Dp,
 ) {
@@ -500,14 +535,9 @@ fun DigestScreen(
                         FilledTonalButton(onClick = { nav.push(AISettingsRoute()) }) { Text(l.aiSection) }
                     } else {
                         Button(
-                            // Catch up first, so the run never works from an old list.
-                            onClick = {
-                                ui.launch {
-                                    catchUp()
-                                    s.run(feedNow(), l)
-                                }
-                            },
-                            enabled = (fresh > 0 || s.needsOlder(feed, s.minutes)) && !s.running,
+                            // Responds at once; a stale feed is synced inside the run.
+                            onClick = { s.run(feedNow, catchUp, feedFresh(), l) },
+                            enabled = !s.running,
                             modifier = Modifier.fillMaxWidth().height(52.dp),
                         ) {
                             Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(20.dp))
@@ -525,7 +555,11 @@ fun DigestScreen(
                         Spacer(Modifier.height(14.dp))
                         val pr = s.progress
                         Text(
-                            if (s.summarizing || pr == null) l.aiSummarizing else l.digestLoading(pr.first, pr.second),
+                            when {
+                                s.syncing -> l.digestUpdating
+                                s.summarizing || pr == null -> l.aiSummarizing
+                                else -> l.digestLoading(pr.first, pr.second)
+                            },
                             style = TextStyle(color = p.muted),
                         )
                     }

@@ -26,12 +26,12 @@ class DigestTest {
             """[{"at":${now - 2 * h},"minutes":60,"ids":["b","c"],"text":"## x"},""" +
                 """{"at":${now - 25 * h},"minutes":60,"ids":["old"],"text":"## y"}]""",
         )
-        val s = DigestState(TestScope()) { now }
+        val s = DigestState(TestScope(kotlinx.coroutines.test.UnconfinedTestDispatcher())) { now }
         assertEquals(1, s.kept.size) // the 25-hour-old one is gone
         assertEquals(setOf("b", "c"), s.covered())
         // Everything in the window already digested: no request, "up to date".
         val feed = listOf(scoop("b", 20), scoop("c", 40), scoop("x", 90)) // the feed reaches past the hour
-        s.run(feed, com.bennybarak.scoops.rotter_scoops.ui.StringsEn)
+        s.run({ feed }, {}, true, com.bennybarak.scoops.rotter_scoops.ui.StringsEn)
         assertTrue(s.upToDate)
         assertTrue(!s.running)
         s.startOver()
@@ -107,6 +107,22 @@ class DigestTest {
         assertTrue(DigestState(TestScope()) { now }.newOnly) // kept for next time
         s.setNewOnlyAndSave(false)
         assertTrue(!DigestState(TestScope()) { now }.newOnly)
+    }
+
+    // The tap responds at once: running is set before any sync, and a sync that
+    // hangs is cut off after 5 seconds rather than freezing the button.
+    @Test fun runRespondsImmediatelyAndBoundsTheSync() = kotlinx.coroutines.test.runTest {
+        val s = DigestState(this) { now }
+        val feed = listOf(scoop("x", 90))
+        var synced = false
+        s.run({ feed }, { kotlinx.coroutines.delay(60_000); synced = true }, false, com.bennybarak.scoops.rotter_scoops.ui.StringsEn)
+        assertTrue(s.running) // immediately, before the sync finishes
+        testScheduler.advanceTimeBy(1_000)
+        assertTrue(s.syncing)
+        testScheduler.advanceUntilIdle()
+        assertTrue(!synced) // the 60s sync was abandoned at 5s
+        assertTrue(!s.running)
+        assertTrue(s.upToDate) // nothing new in the last hour
     }
 
     @Test fun rangeIsFiveMinutesToADay() {

@@ -220,7 +220,9 @@ class ScoopsController(private val scope: CoroutineScope) {
      */
     var pending by mutableStateOf<List<Scoop>?>(null); private set
 
-    var didFetch by mutableStateOf(false); private set // a network load completed this session
+    var didFetch by mutableStateOf(false); private set
+    /** When the feed was last fetched (0 = not this session). */
+    var fetchedAt = 0L; private set // a network load completed this session
     var failed by mutableStateOf(false); private set // first load failed (nothing to show)
     var refreshFailed by mutableStateOf(false); private set // a refresh failed while a list was showing
     private var refreshFailedJob: Job? = null
@@ -306,6 +308,7 @@ class ScoopsController(private val scope: CoroutineScope) {
         try {
             val scoops = RotterService.fetchScoopsPreferringLaunch()
             didFetch = true
+            fetchedAt = System.currentTimeMillis()
             if (stage && loaded.isNotEmpty()) {
                 refreshFailed = false
                 pending = if (scoops == loaded) null else scoops

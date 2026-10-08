@@ -95,6 +95,7 @@ fun HomeScreen(route: HomeRoute) {
                 feed = s.scoops.loaded,
                 feedNow = { s.scoops.loaded },
                 feedLoading = s.scoops.feedLoading,
+                feedFresh = { System.currentTimeMillis() - s.scoops.fetchedAt < 60_000 },
                 catchUp = s.scoops::catchUp,
                 bottomInset = bottomInset,
             )

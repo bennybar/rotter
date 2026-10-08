@@ -80,6 +80,9 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.bennybarak.scoops.rotter_scoops.ui.widgets.shareText
+import androidx.compose.material.icons.rounded.Share
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.material3.LocalContentColor
@@ -632,6 +635,12 @@ private fun ThreadTitleBar(s: ThreadState) {
             if (t != null && AIStore.isReady) {
                 IconButton(onClick = { s.summarize(nav) }) { Icon(Icons.Rounded.AutoAwesome, l.aiSummarize) }
             }
+            // Android's share sheet: the headline and its link.
+            val context = LocalContext.current
+            IconButton(onClick = {
+                view.selectionClick()
+                shareText(context, "${s.thread?.root?.title ?: s.scoop.title}\n${s.scoop.url}")
+            }) { Icon(Icons.Rounded.Share, l.share) }
             val saved = SavedStore.saved.contains(s.scoop.id)
             IconButton(onClick = {
                 view.selectionClick()

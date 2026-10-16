@@ -26,8 +26,8 @@ android {
         minSdk = 24
         targetSdk = 37
         // The Flutter app shipped 1.0.16+16; the code must keep growing.
-        versionCode = 37
-        versionName = "2.6.3"
+        versionCode = 38
+        versionName = "2.7.0"
     }
 
     signingConfigs {
@@ -76,6 +76,8 @@ dependencies {
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
     implementation(libs.androidx.webkit)
+    implementation(libs.androidx.work.runtime)
+    implementation(libs.androidx.lifecycle.process)
     implementation(libs.okhttp)
     implementation(libs.jsoup)
     implementation(libs.coil.compose)

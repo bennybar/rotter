@@ -49,6 +49,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import com.bennybarak.scoops.rotter_scoops.data.AuthService
 import com.bennybarak.scoops.rotter_scoops.ui.HomeRoute
+import com.bennybarak.scoops.rotter_scoops.ScoopsApp
+import com.bennybarak.scoops.rotter_scoops.digest.DigestEngine
+import com.bennybarak.scoops.rotter_scoops.digest.DigestScheduler
 import com.bennybarak.scoops.rotter_scoops.ui.LocalNav
 import com.bennybarak.scoops.rotter_scoops.ui.openLogin
 import com.bennybarak.scoops.rotter_scoops.ui.palette
@@ -64,10 +67,17 @@ val TabBarHeight = 80.dp
 
 /** The home screen's state: the selected tab and each tab's own state, for the session. */
 class HomeState(route: HomeRoute) {
+    /** Tabs: 0 Digest (the main screen), 1 Scoops, 2 New message, 3 Settings. */
     var index by mutableIntStateOf(0)
-    val scoops = ScoopsController(route.scope)
+    val scoops = ScoopsController(route.scope).also {
+        // The list isn't the first screen any more, but its feed and card data
+        // still load at launch (the digest and thread pages use them).
+        it.start()
+    }
     val compose = ComposeState(route, threadId = null, parentNum = 0, editNum = null, embedded = true)
-    val digest = DigestState(route.scope)
+
+    // Summarize runs in the background job (it keeps going if the app closes).
+    val digest = DigestState(route.scope, DigestEngine.shared, runner = { w -> DigestScheduler.runNow(ScoopsApp.instance, w) })
 }
 
 /**
@@ -83,14 +93,15 @@ fun HomeScreen(route: HomeRoute) {
     val accent = MaterialTheme.colorScheme.primary
     val bottomInset = TabBarHeight + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
-    // Back from another tab returns to Scoops first, rather than leaving the app.
+    // Back from another tab returns to the Digest (the main screen) first,
+    // rather than leaving the app.
     BackHandler(enabled = s.index != 0) { s.index = 0 }
 
     Box(Modifier.fillMaxSize()) {
         when (s.index) {
-            0 -> ScoopsScreen(s.scoops, bottomInset)
-            1 -> NewMessageScreen(s.compose, bottomInset)
-            2 -> DigestScreen(
+            1 -> ScoopsScreen(s.scoops, bottomInset)
+            2 -> NewMessageScreen(s.compose, bottomInset)
+            0 -> DigestScreen(
                 s.digest,
                 feed = s.scoops.loaded,
                 feedNow = { s.scoops.loaded },
@@ -102,9 +113,9 @@ fun HomeScreen(route: HomeRoute) {
             else -> SettingsScreen(bottomInset)
         }
         val items = listOf(
+            Triple(Icons.Outlined.AutoAwesome, Icons.Rounded.AutoAwesome, l.tabDigest),
             Triple(Icons.Outlined.Bolt, Icons.Rounded.Bolt, l.tabScoops),
             Triple(Icons.Outlined.Edit, Icons.Rounded.Edit, l.tabNewMessage),
-            Triple(Icons.Outlined.AutoAwesome, Icons.Rounded.AutoAwesome, l.tabDigest),
             Triple(Icons.Outlined.Settings, Icons.Rounded.Settings, l.tabSettings),
         )
         NavigationBar(

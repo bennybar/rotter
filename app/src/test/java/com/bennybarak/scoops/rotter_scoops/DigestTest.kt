@@ -77,7 +77,7 @@ class DigestTest {
             com.bennybarak.scoops.rotter_scoops.net.DigestSource(1, "a", "A", now - 5 * m),
             com.bennybarak.scoops.rotter_scoops.net.DigestSource(2, "b", "B", now - 50 * m),
         )
-        val d = com.bennybarak.scoops.rotter_scoops.ui.screens.KeptDigest(
+        val d = com.bennybarak.scoops.rotter_scoops.digest.KeptDigest(
             now - 2 * m, 60, setOf("a", "b"),
             "## North\n- recent [1]\n## South\n- older [2]\n- both [1, 2]", sources = src,
         )

@@ -6,6 +6,11 @@ package com.bennybarak.scoops.rotter_scoops.ui
 internal fun secs(ms: Long) = String.format(java.util.Locale.ROOT, "%.1f", ms / 1000.0)
 
 abstract class Strings {
+    abstract val digestNotifyProgressChannel: String
+    abstract val digestNotifyReadyChannel: String
+    abstract fun digestNotifyReady(n: Int): String
+    abstract val digestAuto: String
+    abstract fun digestAutoChoice(minutes: Int): String
     abstract val digestNewOnly: String
     abstract val digestNewOnlyHint: String
     abstract fun digestRuntime(totalMs: Long, loadMs: Long, aiMs: Long): String
@@ -200,6 +205,15 @@ abstract class Strings {
 }
 
 object StringsEn : Strings() {
+    override val digestNotifyProgressChannel = "Digest in progress"
+    override val digestNotifyReadyChannel = "Digest ready"
+    override fun digestNotifyReady(n: Int) = "Digest ready · " + (if (n == 1) "1 scoop" else "$n scoops")
+    override val digestAuto = "Automatic digest"
+    override fun digestAutoChoice(minutes: Int) = when (minutes) {
+        0 -> "Off"
+        60 -> "Every hour"
+        else -> if (minutes < 60) "Every $minutes minutes" else "Every ${minutes / 60} hours"
+    }
     override val digestNewOnly = "New only"
     override val digestNewOnlyHint = "Only what's new since the previous digest"
     override fun digestRuntime(totalMs: Long, loadMs: Long, aiMs: Long) =
@@ -411,6 +425,16 @@ object StringsEn : Strings() {
 }
 
 object StringsHe : Strings() {
+    override val digestNotifyProgressChannel = "סיכום בתהליך"
+    override val digestNotifyReadyChannel = "סיכום מוכן"
+    override fun digestNotifyReady(n: Int) = "הסיכום מוכן · " + (if (n == 1) "סקופ אחד" else "$n סקופים")
+    override val digestAuto = "סיכום אוטומטי"
+    override fun digestAutoChoice(minutes: Int) = when (minutes) {
+        0 -> "כבוי"
+        60 -> "כל שעה"
+        120 -> "כל שעתיים"
+        else -> if (minutes < 60) "כל $minutes דקות" else "כל ${minutes / 60} שעות"
+    }
     override val digestNewOnly = "חדשים בלבד"
     override val digestNewOnlyHint = "רק מה שנוסף מאז הסיכום הקודם"
     override fun digestRuntime(totalMs: Long, loadMs: Long, aiMs: Long) =
@@ -620,4 +644,11 @@ object StringsHe : Strings() {
     override val aiLanguageEnglish = "אנגלית"
     override val aiStatusConfigured = "מוגדר"
     override val aiStatusOff = "לא מוגדר"
+}
+
+/** The strings for the app's language, outside composition (notifications, the background job). */
+fun currentStrings(): Strings {
+    val code = com.bennybarak.scoops.rotter_scoops.data.SettingsController.locale
+        ?: java.util.Locale.getDefault().language
+    return if (code == "he" || code == "iw") StringsHe else StringsEn
 }

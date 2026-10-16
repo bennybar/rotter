@@ -43,6 +43,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.bennybarak.scoops.rotter_scoops.digest.DigestScheduler
+import androidx.compose.material.icons.rounded.Check
+import androidx.core.content.ContextCompat
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
+import android.os.Build
+import android.content.pm.PackageManager
+import android.Manifest
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.Lifecycle
 import androidx.compose.runtime.rememberCoroutineScope
@@ -67,6 +75,10 @@ import com.bennybarak.scoops.rotter_scoops.data.AIStore
 import org.json.JSONObject
 import org.json.JSONArray
 import com.bennybarak.scoops.rotter_scoops.data.Prefs
+import com.bennybarak.scoops.rotter_scoops.digest.needsOlder as feedNeedsOlder
+import com.bennybarak.scoops.rotter_scoops.digest.inWindow as scoopsInWindow
+import com.bennybarak.scoops.rotter_scoops.digest.KeptDigest
+import com.bennybarak.scoops.rotter_scoops.digest.DigestEngine
 import com.bennybarak.scoops.rotter_scoops.data.Scoop
 import com.bennybarak.scoops.rotter_scoops.data.SettingsController
 import com.bennybarak.scoops.rotter_scoops.net.DigestItem
@@ -95,47 +107,34 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** At most this many thread pages are read beyond the feed (≈ a day and a half of scoops). */
-private const val MAX_OLDER = 400
-
 /** The time ranges the slider steps through, in minutes: 5 minutes to 24 hours. */
 val DIGEST_STOPS = listOf(5, 10, 15, 30, 45, 60, 90, 120, 180, 240, 360, 480, 720, 960, 1200, 1440)
 
-/** A digest made earlier, kept for [DIGEST_KEEP_MS]: what it covered and its text. */
-data class KeptDigest(
-    val at: Long,
-    val minutes: Int,
-    val ids: Set<String>,
-    val text: String,
-    val loadMs: Long = 0, // fetching the posts
-    val aiMs: Long = 0, // the model's answer
-    val sources: List<DigestSource> = emptyList(), // what each [n] in the text points at
-)
-
-/** Digests are kept this long; their scoops aren't summarized again meanwhile. */
-const val DIGEST_KEEP_MS = 24 * 60 * 60_000L
-
 /**
- * The digest tab: an AI summary of the scoops POSTED (not last commented on)
- * in a chosen window, from their main posts only — no comments are fetched
- * into it. Digests are kept for a day and runs are incremental: a new one
- * covers only scoops no kept digest has covered yet. Lives for the session
- * with the home screen.
+ * The Digest screen's state: the window, "new only", and a view of the
+ * [DigestEngine] that makes the digests. In the app a run goes to the
+ * background worker ([runner]); without one (tests) it runs in [scope].
  */
-class DigestState(private val scope: CoroutineScope, private val now: () -> Long = System::currentTimeMillis) {
+class DigestState(
+    private val scope: CoroutineScope,
+    val engine: DigestEngine = DigestEngine(),
+    private val runner: ((window: Int) -> Unit)? = null,
+    private val now: () -> Long = engine.now,
+) {
+    constructor(scope: CoroutineScope, now: () -> Long) : this(scope, DigestEngine(now), null, now)
+
     companion object {
-        private const val KEY = "digests"
         private const val NEW_ONLY_KEY = "digest_new_only"
     }
 
     var stop by mutableIntStateOf(DIGEST_STOPS.indexOf(60))
+    val minutes get() = DIGEST_STOPS[stop]
 
     /**
      * Show only the newest digest run (what's new since the previous digest),
@@ -148,239 +147,38 @@ class DigestState(private val scope: CoroutineScope, private val now: () -> Long
         Prefs.setBool(NEW_ONLY_KEY, v)
     }
 
+    val kept: List<KeptDigest> get() = engine.kept
+    val running: Boolean get() = engine.running
+    val syncing: Boolean get() = engine.syncing
+    val progress: Pair<Int, Int>? get() = engine.progress
+    val summarizing: Boolean get() = engine.summarizing
+    val error: String? get() = engine.error
+    val upToDate: Boolean get() = engine.upToDate
+
     /** The kept digests the screen considers: all of them, or just the newest. */
     fun considered(): List<KeptDigest> = if (newOnly) kept.take(1) else kept
-    val minutes get() = DIGEST_STOPS[stop]
-
-    var running by mutableStateOf(false); private set
-    var progress by mutableStateOf<Pair<Int, Int>?>(null); private set // posts loaded / total
-    var summarizing by mutableStateOf(false); private set
-    var error by mutableStateOf<String?>(null); private set
-
-    /** Shown when a run found nothing new to summarize. */
-    var upToDate by mutableStateOf(false); private set
-
-    /** Kept digests, newest first. */
-    var kept by mutableStateOf<List<KeptDigest>>(emptyList()); private set
-    private var job: Job? = null
-
-    init {
-        kept = try {
-            val a = JSONArray(Prefs.getString(KEY) ?: "[]")
-            (0 until a.length()).mapNotNull { i ->
-                val o = a.optJSONObject(i) ?: return@mapNotNull null
-                val ids = o.optJSONArray("ids") ?: JSONArray()
-                KeptDigest(
-                    at = o.optLong("at"),
-                    minutes = o.optInt("minutes"),
-                    ids = (0 until ids.length()).map { ids.getString(it) }.toSet(),
-                    text = o.optString("text"),
-                    loadMs = o.optLong("loadMs"),
-                    aiMs = o.optLong("aiMs"),
-                    sources = o.optJSONArray("sources")?.let { a ->
-                        (0 until a.length()).mapNotNull { j ->
-                            val x = a.optJSONObject(j) ?: return@mapNotNull null
-                            DigestSource(
-                                x.optInt("ref"),
-                                x.optString("id"),
-                                x.optString("title"),
-                                if (x.has("published")) x.optLong("published") else null,
-                            )
-                        }
-                    } ?: emptyList(),
-                )
-            }.filter { now() - it.at < DIGEST_KEEP_MS && it.text.isNotBlank() }
-        } catch (_: Exception) {
-            emptyList()
-        }
-    }
-
-    private fun save() {
-        val a = JSONArray()
-        for (d in kept) {
-            a.put(
-                JSONObject()
-                    .put("at", d.at)
-                    .put("minutes", d.minutes)
-                    .put("ids", JSONArray(d.ids.toList()))
-                    .put("text", d.text)
-                    .put("loadMs", d.loadMs)
-                    .put("aiMs", d.aiMs)
-                    .put(
-                        "sources",
-                        JSONArray().apply {
-                            for (src in d.sources) {
-                                put(
-                                    JSONObject().put("ref", src.ref).put("id", src.id).put("title", src.title)
-                                        .apply { src.published?.let { put("published", it) } },
-                                )
-                            }
-                        },
-                    ),
-            )
-        }
-        Prefs.setString(KEY, a.toString())
-    }
-
-    /** Scoops a digest from the last day already covers. */
-    fun covered(): Set<String> {
-        val t = now()
-        return kept.filter { t - it.at < DIGEST_KEEP_MS }.flatMap { it.ids }.toSet()
-    }
-
-    /** Forget the kept digests, so the next run summarizes the whole window. */
-    fun startOver() {
-        kept = emptyList()
-        upToDate = false
-        save()
-    }
-
-    /** The scoops posted inside the window, newest first — by posting time. */
-    fun inWindow(feed: List<Scoop>, minutes: Int, now: Long = this.now()): List<Scoop> {
-        val since = now - minutes * 60_000L
-        return feed.filter { (it.published ?: 0L) >= since }.sortedByDescending { it.published }
-    }
-
-    /** True when the feed doesn't reach back to the start of the window. */
-    fun needsOlder(feed: List<Scoop>, minutes: Int, now: Long = this.now()): Boolean {
-        val oldest = feed.mapNotNull { it.published }.minOrNull() ?: return false
-        return oldest > now - minutes * 60_000L
-    }
-
-    /** True while a run brings the feed up to date before summarizing. */
-    var syncing by mutableStateOf(false); private set
+    fun covered() = engine.covered()
+    fun startOver() = engine.startOver()
+    fun inWindow(feed: List<Scoop>, minutes: Int, now: Long = this.now()): List<Scoop> = scoopsInWindow(feed, minutes, now)
+    fun needsOlder(feed: List<Scoop>, minutes: Int, now: Long = this.now()): Boolean = feedNeedsOlder(feed, minutes, now)
 
     /**
-     * Start a digest at once: the tap always responds. A feed older than a
-     * minute is brought up to date first, inside the run (shown as such) and
-     * for at most 5 seconds — after that it goes on with the feed it has.
+     * Start a digest of the selected window. It responds at once; in the app
+     * it runs in the background worker (with its notification), which brings
+     * the feed up to date itself. In tests: a feed older than a minute is
+     * caught up first, for at most 5 seconds.
      */
     fun run(feedNow: () -> List<Scoop>, catchUp: suspend () -> Unit, feedFresh: Boolean, l: Strings) {
-        if (running) return
         val window = minutes
-        job?.cancel()
-        running = true
-        error = null
-        upToDate = false
-        job = scope.launch {
-            try {
-                if (!feedFresh) {
-                    syncing = true
-                    withTimeoutOrNull(5_000) { catchUp() }
-                    syncing = false
-                }
-                val feed = feedNow()
-                val done0 = covered()
-                val items = inWindow(feed, window).filter { it.id !in done0 }
-                if (items.isEmpty() && !needsOlder(feed, window)) {
-                    upToDate = true
-                    return@launch
-                }
-                runDigest(feed, items, done0, window, l)
-            } finally {
-                syncing = false
-                running = false
-            }
+        runner?.let {
+            if (!engine.running) it(window)
+            return
         }
-    }
-
-    private suspend fun runDigest(
-        feed: List<Scoop>,
-        items: List<Scoop>,
-        done0: Set<String>,
-        window: Int,
-        l: Strings,
-    ) = coroutineScope {
-        run {
-            running = true
-            progress = 0 to items.size
-            val started = System.nanoTime()
-            try {
-                val key = AIStore.apiKey() ?: throw SummaryException(l.aiErrorNotConfigured)
-                val since = now() - window * 60_000L
-                val clock = SimpleDateFormat("HH:mm", Locale.ROOT)
-                // Each scoop's main post. Pages are fetched like the list's
-                // metadata (20 at a time); a page that fails keeps its headline.
-                val gate = Semaphore(20)
-                var done = 0
-                val ids = items.map { it.id }.toMutableSet()
-                val digest = items.map { s ->
-                    async {
-                        val body = gate.withPermit {
-                            try {
-                                RotterService.fetchThread(s.id).root?.bodyHtml
-                            } catch (e: CancellationException) {
-                                throw e
-                            } catch (_: Exception) {
-                                null
-                            }
-                        }
-                        done++
-                        progress = done to items.size
-                        DigestItem(clock.format(Date(s.published ?: 0L)), s.title, body, s.id, s.published)
-                    }
-                }.awaitAll().toMutableList()
-                // The RSS feed holds only the latest ~74 scoops (a few hours).
-                // Scoop thread numbers are consecutive, so walk down from the
-                // oldest one in the feed, reading each post's own time, until a
-                // batch is older than the window. Already-digested scoops are
-                // skipped without fetching them.
-                if (needsOlder(feed, window)) {
-                    var next = feed.mapNotNull { it.id.toLongOrNull() }.minOrNull()?.minus(1) ?: 0L
-                    var walked = 0
-                    while (next > 0 && walked < MAX_OLDER) {
-                        val batch = (0 until 20).map { next - it }.filter { it > 0 }
-                        next -= 20
-                        walked += batch.size
-                        progress = done to done + 20
-                        val fresh = batch.filter { it.toString() !in done0 }
-                        val roots = fresh.map { id ->
-                            async {
-                                try {
-                                    RotterService.fetchThread(id.toString()).root?.let { id to it }
-                                } catch (e: CancellationException) {
-                                    throw e
-                                } catch (_: Exception) {
-                                    null // removed (404) or a blip: skip it
-                                }
-                            }
-                        }.awaitAll().filterNotNull()
-                        done += batch.size
-                        val inside = roots.filter { (it.second.timestamp ?: 0L) >= since }
-                        for ((id, r) in inside) {
-                            ids.add(id.toString())
-                            digest.add(DigestItem(clock.format(Date(r.timestamp!!)), r.title ?: "", r.bodyHtml, id.toString(), r.timestamp))
-                        }
-                        if (roots.isNotEmpty() && inside.isEmpty()) break
-                    }
-                }
-                if (digest.isEmpty()) {
-                    upToDate = true
-                    return@run
-                }
-                summarizing = true
-                val loaded = System.nanoTime()
-                val text = ThreadSummarizer(
-                    apiKey = key,
-                    model = AIStore.model,
-                    baseUrl = AIStore.baseUrl,
-                    language = AIStore.promptLanguage(SettingsController.locale),
-                ).summarizeDigest(digest, "$window minutes")
-                val t = now()
-                val loadMs = (loaded - started) / 1_000_000
-                val aiMs = (System.nanoTime() - loaded) / 1_000_000
-                val sources = digest.mapIndexed { i, it -> DigestSource(i + 1, it.id, it.title, it.published) }
-                kept = (listOf(KeptDigest(t, window, ids, text, loadMs, aiMs, sources)) + kept).filter { t - it.at < DIGEST_KEEP_MS }
-                save()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                val msg = if (e is SummaryException) e.message else (e.message ?: e.toString())
-                error = msg.ifEmpty { l.aiErrorEmpty }
-            } finally {
-                running = false
-                summarizing = false
-                progress = null
+        if (!engine.tryStart()) return
+        scope.launch {
+            engine.run(window, l) {
+                if (!feedFresh) withTimeoutOrNull(5_000) { catchUp() }
+                feedNow()
             }
         }
     }
@@ -402,6 +200,19 @@ fun DigestScreen(
     // back to the app on it — so its window includes the latest scoops.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { ui.launch { catchUp() } }
     var refreshing by remember { mutableStateOf(false) }
+    // Android 13+: the digest job's notifications need permission; ask the
+    // first time a digest is started or the schedule is turned on.
+    val notifyPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    val ctx = LocalContext.current
+    fun askToNotify() {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notifyPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+    var auto by remember { mutableIntStateOf(DigestScheduler.autoMinutes) }
+    var autoMenu by remember { mutableStateOf(false) }
     val l = strings
     val p = palette
     val lang = LocalLanguage.current
@@ -528,6 +339,35 @@ fun DigestScreen(
                             colors = SwitchDefaults.colors(checkedTrackColor = accent),
                         )
                     }
+                    // Automatic digests on a schedule, in the background.
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            l.digestAuto,
+                            style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = p.ink),
+                            modifier = Modifier.weight(1f),
+                        )
+                        Box {
+                            TextButton(onClick = { autoMenu = true }, enabled = AIStore.isReady) {
+                                Text(l.digestAutoChoice(auto))
+                            }
+                            DropdownMenu(expanded = autoMenu, onDismissRequest = { autoMenu = false }) {
+                                for (m in DigestScheduler.AUTO_CHOICES) {
+                                    DropdownMenuItem(
+                                        text = { Text(l.digestAutoChoice(m), style = TextStyle(fontSize = 15.sp)) },
+                                        leadingIcon = {
+                                            if (m == auto) Icon(Icons.Rounded.Check, null) else Spacer(Modifier.size(24.dp))
+                                        },
+                                        onClick = {
+                                            autoMenu = false
+                                            if (m > 0) askToNotify()
+                                            auto = m
+                                            DigestScheduler.setAuto(ctx, m)
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
                     Spacer(Modifier.height(14.dp))
                     if (!AIStore.isReady) {
                         Text(l.digestNeedsKey, style = TextStyle(fontSize = 13.5.sp, color = p.muted, lineHeight = 1.4.em))
@@ -536,7 +376,10 @@ fun DigestScreen(
                     } else {
                         Button(
                             // Responds at once; a stale feed is synced inside the run.
-                            onClick = { s.run(feedNow, catchUp, feedFresh(), l) },
+                            onClick = {
+                                askToNotify()
+                                s.run(feedNow, catchUp, feedFresh(), l)
+                            },
                             enabled = !s.running,
                             modifier = Modifier.fillMaxWidth().height(52.dp),
                         ) {

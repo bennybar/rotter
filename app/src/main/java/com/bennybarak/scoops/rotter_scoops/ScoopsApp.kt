@@ -28,8 +28,14 @@ import com.bennybarak.scoops.rotter_scoops.net.RotterService
 import kotlinx.coroutines.launch
 
 class ScoopsApp : Application(), ImageLoaderFactory {
+    companion object {
+        lateinit var instance: ScoopsApp
+            private set
+    }
+
     override fun onCreate() {
         super.onCreate()
+        instance = this
         Prefs.init(this)
         SecureStore.init(this)
         DiskCache.dir = cacheDir
@@ -58,6 +64,8 @@ class ScoopsApp : Application(), ImageLoaderFactory {
         MainScope().launch(Dispatchers.IO) { AIStore.loadKeyState() }
         // Put the feed request on the wire now; the list picks it up when it
         // first loads, instead of starting it after the first frame.
+        // The automatic digest schedule the user chose, if any.
+        com.bennybarak.scoops.rotter_scoops.digest.DigestScheduler.ensure(this)
         RotterService.launchFeed = MainScope().async(Dispatchers.IO) { RotterService.fetchScoops() }
     }
 

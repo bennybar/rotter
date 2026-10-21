@@ -126,7 +126,7 @@ class DigestTest {
     }
 
     @Test fun rangeIsFiveMinutesToADay() {
-        assertEquals(5, DIGEST_STOPS.first())
+        assertEquals(15, DIGEST_STOPS.first())
         assertEquals(24 * 60, DIGEST_STOPS.last())
         assertEquals(DIGEST_STOPS.sorted(), DIGEST_STOPS)
     }

@@ -192,7 +192,7 @@ fun isRtlText(text: String): Boolean {
 /** `**bold**` spans; everything else is plain text. */
 private val boldRe = Regex("""\*\*(.+?)\*\*""")
 
-private fun inline(text: String): AnnotatedString = buildAnnotatedString {
+fun inline(text: String): AnnotatedString = buildAnnotatedString {
     var last = 0
     for (m in boldRe.findAll(text)) {
         if (m.range.first > last) append(text.substring(last, m.range.first))
@@ -203,7 +203,7 @@ private fun inline(text: String): AnnotatedString = buildAnnotatedString {
 }
 
 @Composable
-private fun Directional(text: String, content: @Composable () -> Unit) {
+fun Directional(text: String, content: @Composable () -> Unit) {
     CompositionLocalProvider(
         LocalLayoutDirection provides if (isRtlText(text)) LayoutDirection.Rtl else LayoutDirection.Ltr,
         content = content,

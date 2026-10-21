@@ -30,11 +30,11 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.runtime.collectAsState
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -113,8 +113,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** The time ranges the slider steps through, in minutes: 5 minutes to 24 hours. */
-val DIGEST_STOPS = listOf(5, 10, 15, 30, 45, 60, 90, 120, 180, 240, 360, 480, 720, 960, 1200, 1440)
+/** The time ranges to choose from, in minutes: 15 minutes to 24 hours. */
+val DIGEST_STOPS = listOf(15, 30, 60, 180, 480, 1440)
 
 /**
  * The Digest screen's state: the window, "new only", and a view of the
@@ -213,6 +213,7 @@ fun DigestScreen(
     }
     var auto by remember { mutableIntStateOf(DigestScheduler.autoMinutes) }
     var autoMenu by remember { mutableStateOf(false) }
+    val nextAuto by remember { DigestScheduler.nextAuto(ctx) }.collectAsState(null)
     val l = strings
     val p = palette
     val lang = LocalLanguage.current
@@ -220,12 +221,15 @@ fun DigestScreen(
     val view = LocalView.current
     val context = LocalContext.current
     val accent = MaterialTheme.colorScheme.primary
+    val onAccent = MaterialTheme.colorScheme.onPrimary
+    val clock = remember { SimpleDateFormat("HH:mm", Locale.ROOT) }
     val inRange = s.inWindow(feed, s.minutes)
     val covered = s.covered()
     val since = System.currentTimeMillis() - s.minutes * 60_000L
     // Kept digests narrowed to the selected window; empty ones drop out.
     val shown = s.considered().map { it to visibleBlocks(it, since) }.filter { it.second.isNotEmpty() }
     val fresh = inRange.count { it.id !in covered }
+    val older = s.needsOlder(feed, s.minutes)
     val oldest = feed.mapNotNull { it.published }.minOrNull()
 
     AppScaffold(
@@ -262,199 +266,235 @@ fun DigestScreen(
         ) {
         LazyColumn(
             Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 28.dp + bottomInset),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 28.dp + bottomInset),
         ) {
             item {
-                Text(l.digestIntro, style = TextStyle(color = p.muted, lineHeight = 1.45.em, fontSize = 14.sp))
-                Spacer(Modifier.height(16.dp))
-                // The window and what's in it.
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .background(p.surface, RoundedCornerShape(24.dp))
-                        .padding(18.dp),
-                ) {
-                    Text(l.digestWindow, style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W700, color = p.muted))
-                    Text(
-                        l.durationLabel(s.minutes),
-                        style = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.W800, color = p.ink),
-                    )
-                    Slider(
-                        value = s.stop.toFloat(),
-                        onValueChange = { v ->
-                            val i = v.toInt().coerceIn(0, DIGEST_STOPS.lastIndex)
-                            if (i != s.stop) {
-                                view.selectionClick()
-                                s.stop = i
-                            }
-                        },
-                        valueRange = 0f..DIGEST_STOPS.lastIndex.toFloat(),
-                        steps = DIGEST_STOPS.size - 2,
-                        enabled = !s.running,
-                        colors = SliderDefaults.colors(thumbColor = accent, activeTrackColor = accent),
-                    )
-                    val older = s.needsOlder(feed, s.minutes)
-                    Text(
-                        when {
-                            older -> l.scoopsCount(inRange.size) + "+"
-                            inRange.isEmpty() -> l.digestNone
-                            fresh < inRange.size -> l.scoopsCount(inRange.size) + " · " + l.digestNewCount(fresh)
-                            else -> l.scoopsCount(inRange.size)
-                        },
-                        style = TextStyle(
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.W700,
-                            color = if (inRange.isEmpty() && !older) p.muted else accent,
-                        ),
-                    )
-                    if (feedLoading) {
-                        Spacer(Modifier.height(2.dp))
-                        Text(l.digestUpdating, style = TextStyle(fontSize = 12.5.sp, color = p.muted))
-                    }
-                    // The feed reaches back only a few hours; older scoops in
-                    // the window are read from their pages when summarizing.
-                    if (older && oldest != null) {
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            "${l.digestFeedReach} ${relTime(oldest, l, lang)} · ${l.digestOlderLoaded}",
-                            style = TextStyle(fontSize = 12.5.sp, color = p.muted, lineHeight = 1.4.em),
-                        )
-                    }
-                    Spacer(Modifier.height(10.dp))
-                    // New only: just the latest run, not earlier digests.
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { s.setNewOnlyAndSave(!s.newOnly) },
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(l.digestNewOnly, style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = p.ink))
-                            Text(l.digestNewOnlyHint, style = TextStyle(fontSize = 12.5.sp, color = p.muted))
-                        }
-                        Switch(
-                            checked = s.newOnly,
-                            onCheckedChange = s::setNewOnlyAndSave,
-                            colors = SwitchDefaults.colors(checkedTrackColor = accent),
-                        )
-                    }
-                    // Automatic digests on a schedule, in the background.
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            l.digestAuto,
-                            style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = p.ink),
-                            modifier = Modifier.weight(1f),
-                        )
-                        Box {
-                            TextButton(onClick = { autoMenu = true }, enabled = AIStore.isReady) {
-                                Text(l.digestAutoChoice(auto))
-                            }
-                            DropdownMenu(expanded = autoMenu, onDismissRequest = { autoMenu = false }) {
-                                for (m in DigestScheduler.AUTO_CHOICES) {
-                                    DropdownMenuItem(
-                                        text = { Text(l.digestAutoChoice(m), style = TextStyle(fontSize = 15.sp)) },
-                                        leadingIcon = {
-                                            if (m == auto) Icon(Icons.Rounded.Check, null) else Spacer(Modifier.size(24.dp))
-                                        },
-                                        onClick = {
-                                            autoMenu = false
-                                            if (m > 0) askToNotify()
-                                            auto = m
-                                            DigestScheduler.setAuto(ctx, m)
-                                        },
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(14.dp))
-                    if (!AIStore.isReady) {
-                        Text(l.digestNeedsKey, style = TextStyle(fontSize = 13.5.sp, color = p.muted, lineHeight = 1.4.em))
-                        Spacer(Modifier.height(10.dp))
-                        FilledTonalButton(onClick = { nav.push(AISettingsRoute()) }) { Text(l.aiSection) }
-                    } else {
-                        Button(
-                            // Responds at once; a stale feed is synced inside the run.
-                            onClick = {
-                                askToNotify()
-                                s.run(feedNow, catchUp, feedFresh(), l)
-                            },
-                            enabled = !s.running,
-                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                Text(
+                    l.digestWindow,
+                    style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W700, color = p.muted),
+                    modifier = Modifier.padding(start = 4.dp),
+                )
+                Spacer(Modifier.height(8.dp))
+                // The window: a few fixed ranges, one tap each.
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    DIGEST_STOPS.forEachIndexed { i, m ->
+                        val on = i == s.stop
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (on) accent else p.surface)
+                                .clickable(enabled = !s.running && !on) {
+                                    view.selectionClick()
+                                    s.stop = i
+                                },
+                            contentAlignment = Alignment.Center,
                         ) {
-                            Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(20.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(l.digestButton, style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.W700))
-                        }
-                    }
-                }
-                Spacer(Modifier.height(18.dp))
-            }
-            when {
-                s.running -> item {
-                    Column(Modifier.fillMaxWidth().padding(top = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator()
-                        Spacer(Modifier.height(14.dp))
-                        val pr = s.progress
-                        Text(
-                            when {
-                                s.syncing -> l.digestUpdating
-                                s.summarizing || pr == null -> l.aiSummarizing
-                                else -> l.digestLoading(pr.first, pr.second)
-                            },
-                            style = TextStyle(color = p.muted),
-                        )
-                    }
-                }
-                s.error != null -> item {
-                    Column(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Rounded.ErrorOutline, null, tint = p.muted, modifier = Modifier.size(40.dp))
-                        Spacer(Modifier.height(10.dp))
-                        Text(l.aiErrorTitle, style = TextStyle(fontWeight = FontWeight.W800, color = p.ink))
-                        Spacer(Modifier.height(4.dp))
-                        Text(s.error ?: "", style = TextStyle(color = p.muted, textAlign = TextAlign.Center))
-                    }
-                }
-                else -> {
-                    if (s.upToDate) {
-                        item {
-                            Text(l.digestUpToDate, style = TextStyle(color = p.muted, fontSize = 14.sp))
-                            Spacer(Modifier.height(6.dp))
-                        }
-                    }
-                    // The kept digests, newest first; each covers only scoops the
-                    // ones before it hadn't.
-                    val clock = SimpleDateFormat("HH:mm", Locale.ROOT)
-                    // Only what the selected window covers.
-                    shown.forEachIndexed { i, (d, blocks) ->
-                        item {
-                            if (i > 0) Spacer(Modifier.height(18.dp))
-                            val inWindow = if (d.sources.isEmpty()) d.ids.size else d.sources.count { (it.published ?: 0L) >= since }
                             Text(
-                                l.digestMadeAt(clock.format(Date(d.at)), inWindow),
-                                style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W700, color = if (i == 0) accent else p.muted),
+                                l.digestChip(m),
+                                style = TextStyle(
+                                    fontSize = 14.sp,
+                                    fontWeight = if (on) FontWeight.W800 else FontWeight.W600,
+                                    color = if (on) onAccent else p.ink,
+                                ),
                             )
                         }
-                        items(blocks.size) { j -> DigestBlock(blocks[j], d.sources) }
-                        // How long it took, at its bottom (older kept digests have no timing).
-                        if (d.loadMs + d.aiMs > 0) {
-                            item {
-                                Spacer(Modifier.height(8.dp))
-                                Text(
-                                    l.digestRuntime(d.loadMs + d.aiMs, d.loadMs, d.aiMs),
-                                    style = TextStyle(fontSize = 12.sp, color = p.muted),
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                val chipColors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = accent.copy(alpha = 0.18f),
+                    selectedLabelColor = accent,
+                    selectedLeadingIconColor = accent,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // New only: just the latest run, not earlier digests.
+                    FilterChip(
+                        selected = s.newOnly,
+                        onClick = { s.setNewOnlyAndSave(!s.newOnly) },
+                        label = { Text(l.digestNewOnly) },
+                        leadingIcon = if (s.newOnly) {
+                            { Icon(Icons.Rounded.Check, null, Modifier.size(18.dp)) }
+                        } else null,
+                        shape = RoundedCornerShape(18.dp),
+                        colors = chipColors,
+                    )
+                    // Automatic digests on a schedule, in the background.
+                    Box {
+                        FilterChip(
+                            selected = auto > 0,
+                            onClick = { autoMenu = true },
+                            enabled = AIStore.isReady,
+                            label = { Text(l.digestAutoShort(auto)) },
+                            leadingIcon = { Icon(Icons.Rounded.Schedule, null, Modifier.size(18.dp)) },
+                            shape = RoundedCornerShape(18.dp),
+                            colors = chipColors,
+                        )
+                        DropdownMenu(expanded = autoMenu, onDismissRequest = { autoMenu = false }) {
+                            for (m in DigestScheduler.AUTO_CHOICES) {
+                                DropdownMenuItem(
+                                    text = { Text(l.digestAutoChoice(m), style = TextStyle(fontSize = 15.sp)) },
+                                    leadingIcon = {
+                                        if (m == auto) Icon(Icons.Rounded.Check, null) else Spacer(Modifier.size(24.dp))
+                                    },
+                                    onClick = {
+                                        autoMenu = false
+                                        if (m > 0) askToNotify()
+                                        auto = m
+                                        DigestScheduler.setAuto(ctx, m)
+                                    },
                                 )
                             }
                         }
                     }
-                    if (shown.isNotEmpty()) {
-                        item {
-                            AiDisclaimer()
-                            Spacer(Modifier.height(8.dp))
-                            TextButton(onClick = { s.startOver() }) { Text(l.digestStartOver) }
+                }
+                Spacer(Modifier.height(10.dp))
+                // What's waiting to be summarized, and the button that does it.
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(accent.copy(alpha = 0.12f), RoundedCornerShape(22.dp))
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                ) {
+                    when {
+                        !AIStore.isReady -> Column {
+                            Text(l.digestNeedsKey, style = TextStyle(fontSize = 14.sp, color = p.ink, lineHeight = 1.4.em))
+                            Spacer(Modifier.height(10.dp))
+                            FilledTonalButton(onClick = { nav.push(AISettingsRoute()) }) { Text(l.aiSection) }
+                        }
+                        s.running -> Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 3.dp)
+                            Spacer(Modifier.width(14.dp))
+                            val pr = s.progress
+                            Text(
+                                when {
+                                    s.syncing -> l.digestUpdating
+                                    s.summarizing || pr == null -> l.aiSummarizing
+                                    else -> l.digestLoading(pr.first, pr.second)
+                                },
+                                style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = p.ink),
+                            )
+                        }
+                        else -> Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                Modifier
+                                    .size(40.dp)
+                                    .background(if (fresh > 0) accent else accent.copy(alpha = 0.2f), RoundedCornerShape(14.dp)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                when {
+                                    s.error != null -> Icon(Icons.Rounded.ErrorOutline, null, tint = accent)
+                                    fresh > 0 -> Text(
+                                        "$fresh",
+                                        style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.W800, color = onAccent),
+                                    )
+                                    else -> Icon(Icons.Rounded.Check, null, tint = accent)
+                                }
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    when {
+                                        s.error != null -> l.aiErrorTitle
+                                        fresh > 0 -> l.digestNewSince(fresh, s.kept.firstOrNull()?.let { clock.format(Date(it.at)) })
+                                        inRange.isEmpty() && !older -> l.digestNone
+                                        else -> l.digestUpToDate
+                                    },
+                                    style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = p.ink, lineHeight = 1.35.em),
+                                )
+                                val sub = listOfNotNull(
+                                    s.error,
+                                    if (feedLoading) l.digestUpdating
+                                    else l.scoopsCount(inRange.size) + (if (older) "+" else "") + " · " + l.durationLabel(s.minutes),
+                                    // The feed reaches back only a few hours; older scoops in
+                                    // the window are read from their pages when summarizing.
+                                    if (older && oldest != null) "${l.digestFeedReach} ${relTime(oldest, l, lang)} · ${l.digestOlderLoaded}" else null,
+                                    nextAuto?.let { l.digestNextAuto(clock.format(Date(it))) },
+                                )
+                                Text(
+                                    sub.joinToString("\n"),
+                                    style = TextStyle(fontSize = 12.5.sp, color = p.muted, lineHeight = 1.4.em),
+                                )
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Button(
+                                // Responds at once; a stale feed is synced inside the run.
+                                onClick = {
+                                    askToNotify()
+                                    s.run(feedNow, catchUp, feedFresh(), l)
+                                },
+                                contentPadding = PaddingValues(horizontal = 16.dp),
+                            ) {
+                                Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(l.digestButton, style = TextStyle(fontWeight = FontWeight.W700))
+                            }
                         }
                     }
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+            // The kept digests, newest first; each covers only scoops the
+            // ones before it hadn't. Only what the selected window covers.
+            shown.forEachIndexed { i, (d, blocks) ->
+                item {
+                    val inWindow = if (d.sources.isEmpty()) d.ids.size else d.sources.count { (it.published ?: 0L) >= since }
+                    Text(
+                        l.digestMadeAt(clock.format(Date(d.at)), inWindow),
+                        style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W700, color = if (i == 0) accent else p.muted),
+                        modifier = Modifier.padding(start = 4.dp, top = if (i > 0) 14.dp else 0.dp, bottom = 8.dp),
+                    )
+                }
+                // One card per topic: its heading and the lines under it.
+                val cards = ArrayList<Pair<SummaryBlock?, MutableList<SummaryBlock>>>()
+                for (b in blocks) {
+                    if (b.kind == SummaryBlockKind.heading) cards.add(b to mutableListOf())
+                    else if (cards.isEmpty()) cards.add(null to mutableListOf(b))
+                    else cards.last().second.add(b)
+                }
+                items(cards.size) { j ->
+                    val (heading, lines) = cards[j]
+                    Column(
+                        Modifier
+                            .padding(bottom = 10.dp)
+                            .fillMaxWidth()
+                            .background(p.surface, RoundedCornerShape(26.dp))
+                            .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 4.dp),
+                    ) {
+                        if (heading != null) {
+                            Directional(heading.text) {
+                                Text(
+                                    inline(splitRefs(heading.text).first),
+                                    style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.W800, color = p.ink),
+                                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                                )
+                            }
+                        }
+                        lines.forEachIndexed { k, b ->
+                            if (k > 0 || heading != null) {
+                                Box(Modifier.fillMaxWidth().height(1.dp).background(p.ink.copy(alpha = 0.07f)))
+                            }
+                            DigestLine(b, d.sources)
+                        }
+                    }
+                }
+                // How long it took, at its bottom (older kept digests have no timing).
+                if (d.loadMs + d.aiMs > 0) {
+                    item {
+                        Text(
+                            l.digestRuntime(d.loadMs + d.aiMs, d.loadMs, d.aiMs),
+                            style = TextStyle(fontSize = 12.sp, color = p.muted),
+                            modifier = Modifier.padding(start = 4.dp),
+                        )
+                    }
+                }
+            }
+            if (shown.isNotEmpty() && !s.running) {
+                item {
+                    AiDisclaimer()
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(onClick = { s.startOver() }) { Text(l.digestStartOver) }
                 }
             }
         }
@@ -462,19 +502,45 @@ fun DigestScreen(
     }
 }
 
+/** The posting time a digest line starts with ("11:08 …", possibly in bold). */
+private val leadingTimeRe = Regex("""^(?:\*\*\s*(\d{1,2}:\d{2})\s*\*\*|(\d{1,2}:\d{2}))\s*[-–—:·|]?\s*""")
+
 /**
- * A digest line. Its scoop references are hidden; tapping the line opens the
- * thread it's based on, or — when it merges several — a menu of them.
+ * A digest line: its posting time in a column of its own, then the text. Its
+ * scoop references are hidden; tapping the line opens the thread it's based
+ * on, or — when it merges several — a menu of them.
  */
 @Composable
-private fun DigestBlock(b: SummaryBlock, sources: List<DigestSource>) {
+private fun DigestLine(b: SummaryBlock, sources: List<DigestSource>) {
     val nav = LocalNav.current
     val view = LocalView.current
+    val p = palette
+    val accent = MaterialTheme.colorScheme.primary
     val (text, refs) = remember(b.text) { splitRefs(b.text) }
+    val time = remember(text) { leadingTimeRe.find(text) }
+    val body = if (time != null) text.substring(time.range.last + 1) else text
     val linked = refs.mapNotNull { r -> sources.firstOrNull { it.ref == r && it.id.isNotEmpty() } }
-    val shown = b.copy(text = text)
+    val line = @Composable {
+        Directional(body) {
+            Row(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
+                when {
+                    time != null -> Text(
+                        time.groupValues[1].ifEmpty { time.groupValues[2] },
+                        style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W700, color = accent),
+                        modifier = Modifier.width(46.dp).padding(top = 2.dp),
+                    )
+                    b.kind == SummaryBlockKind.item -> Text(b.marker ?: "•", style = TextStyle(fontSize = 15.sp, color = p.muted), modifier = Modifier.width(22.dp))
+                }
+                Text(
+                    inline(body),
+                    style = TextStyle(fontSize = 15.5.sp, lineHeight = 1.45.em, color = p.ink),
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
     if (linked.isEmpty()) {
-        SelectionContainer { SummaryBlockView(shown) }
+        SelectionContainer { line() }
         return
     }
     fun open(src: DigestSource) {
@@ -488,7 +554,7 @@ private fun DigestBlock(b: SummaryBlock, sources: List<DigestSource>) {
             .clip(RoundedCornerShape(10.dp))
             .clickable { if (linked.size == 1) open(linked.first()) else menu = true },
     ) {
-        SummaryBlockView(shown)
+        line()
         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
             val clock = SimpleDateFormat("HH:mm", Locale.ROOT)
             for (src in linked) {

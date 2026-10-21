@@ -33,6 +33,8 @@ import com.bennybarak.scoops.rotter_scoops.data.Scoop
 import com.bennybarak.scoops.rotter_scoops.net.RotterService
 import com.bennybarak.scoops.rotter_scoops.ui.currentStrings
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -123,6 +125,12 @@ object DigestScheduler {
         autoMinutes = minutes
         schedule(context, ExistingPeriodicWorkPolicy.UPDATE)
     }
+
+    /** When the next automatic digest is due (epoch ms); null while it's off. */
+    fun nextAuto(context: Context): Flow<Long?> =
+        WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(AUTO).map { infos ->
+            infos.firstOrNull { !it.state.isFinished }?.nextScheduleTimeMillis?.takeIf { it != Long.MAX_VALUE }
+        }
 
     /** At app start: make sure the saved schedule is in place. */
     fun ensure(context: Context) = schedule(context, ExistingPeriodicWorkPolicy.KEEP)

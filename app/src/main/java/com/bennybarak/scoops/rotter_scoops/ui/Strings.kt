@@ -15,6 +15,7 @@ abstract class Strings {
     abstract fun digestChip(minutes: Int): String
     abstract fun digestNewSince(n: Int, time: String?): String
     abstract fun digestNextAuto(time: String): String
+    abstract val digestCounting: String
     abstract val digestNewOnly: String
     abstract val digestNewOnlyHint: String
     abstract fun digestRuntime(totalMs: Long, loadMs: Long, aiMs: Long): String
@@ -25,14 +26,11 @@ abstract class Strings {
     abstract fun digestMadeAt(time: String, n: Int): String
     abstract val listTextSize: String
     abstract val articleTextSize: String
-    abstract val digestOlderLoaded: String
     abstract val tabDigest: String
     abstract val digestTitle: String
-    abstract val digestWindow: String
     abstract val digestNone: String
     abstract val digestButton: String
     abstract val digestNeedsKey: String
-    abstract val digestFeedReach: String
     abstract val digestPostedIn: String
     abstract fun scoopsCount(n: Int): String
     abstract fun durationLabel(minutes: Int): String
@@ -229,26 +227,24 @@ object StringsEn : Strings() {
     }
     override fun digestNewSince(n: Int, time: String?) =
         (if (n == 1) "1 new scoop" else "$n new scoops") + (time?.let { " since $it" } ?: "")
-    override fun digestNextAuto(time: String) = "Next automatic digest at $time"
+    override fun digestNextAuto(time: String) = "Next auto at $time"
+    override val digestCounting = "Counting older scoops…"
     override val digestNewOnly = "New only"
     override val digestNewOnlyHint = "Only what's new since the previous digest"
     override fun digestRuntime(totalMs: Long, loadMs: Long, aiMs: Long) =
         "Took ${secs(totalMs)} s (loading ${secs(loadMs)} s · AI ${secs(aiMs)} s)"
-    override val digestUpToDate = "Everything in this range is already summarized below."
+    override val digestUpToDate = "All summarized"
     override val digestStartOver = "Summarize all again"
     override val digestUpdating = "Getting the latest scoops…"
     override fun digestNewCount(n: Int) = "$n new"
     override fun digestMadeAt(time: String, n: Int) = "Digest from $time · " + (if (n == 1) "1 scoop" else "$n scoops")
     override val listTextSize = "List text size"
     override val articleTextSize = "Article text size"
-    override val digestOlderLoaded = "older scoops are loaded when you summarize"
     override val tabDigest = "Digest"
     override val digestTitle = "Scoops digest"
-    override val digestWindow = "Posted in the last"
     override val digestNone = "No scoops were posted in this time"
     override val digestButton = "Summarize"
     override val digestNeedsKey = "To get a digest, turn on AI summaries and add an API key."
-    override val digestFeedReach = "The feed only reaches back"
     override val digestPostedIn = "Digest of the last"
     override fun scoopsCount(n: Int) = if (n == 1) "1 scoop" else "$n scoops"
     override fun durationLabel(minutes: Int) = when {
@@ -464,26 +460,24 @@ object StringsHe : Strings() {
     }
     override fun digestNewSince(n: Int, time: String?) =
         (if (n == 1) "סקופ חדש" else "$n סקופים חדשים") + (time?.let { " מאז $it" } ?: "")
-    override fun digestNextAuto(time: String) = "סיכום אוטומטי הבא ב-$time"
+    override fun digestNextAuto(time: String) = "אוטומטי הבא ב-$time"
+    override val digestCounting = "סופר סקופים ישנים יותר…"
     override val digestNewOnly = "חדשים בלבד"
     override val digestNewOnlyHint = "רק מה שנוסף מאז הסיכום הקודם"
     override fun digestRuntime(totalMs: Long, loadMs: Long, aiMs: Long) =
         "נוצר ב-${secs(totalMs)} שניות (טעינה ${secs(loadMs)} · AI ${secs(aiMs)})"
-    override val digestUpToDate = "כל הסקופים בטווח הזה כבר סוכמו למטה."
+    override val digestUpToDate = "הכל כבר סוכם"
     override val digestStartOver = "סכם הכל מחדש"
     override val digestUpdating = "מעדכן סקופים…"
     override fun digestNewCount(n: Int) = "$n חדשים"
     override fun digestMadeAt(time: String, n: Int) = "סיכום מ-$time · " + (if (n == 1) "סקופ אחד" else "$n סקופים")
     override val listTextSize = "גודל טקסט ברשימה"
     override val articleTextSize = "גודל טקסט בכתבה"
-    override val digestOlderLoaded = "סקופים ישנים יותר ייטענו בזמן הסיכום"
     override val tabDigest = "סיכום"
     override val digestTitle = "סיכום סקופים"
-    override val digestWindow = "פורסמו ב־"
     override val digestNone = "לא פורסמו סקופים בזמן הזה"
     override val digestButton = "סכם"
     override val digestNeedsKey = "כדי לקבל סיכום, הפעילו את סיכומי ה-AI והוסיפו מפתח API."
-    override val digestFeedReach = "הפיד מגיע רק עד"
     override val digestPostedIn = "סיכום של"
     override fun scoopsCount(n: Int) = if (n == 1) "סקופ אחד" else "$n סקופים"
     override fun durationLabel(minutes: Int) = when {

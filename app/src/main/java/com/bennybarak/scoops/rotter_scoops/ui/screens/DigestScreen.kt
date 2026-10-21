@@ -35,6 +35,9 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -88,7 +91,6 @@ import com.bennybarak.scoops.rotter_scoops.net.RotterService
 import com.bennybarak.scoops.rotter_scoops.net.SummaryException
 import com.bennybarak.scoops.rotter_scoops.net.ThreadSummarizer
 import com.bennybarak.scoops.rotter_scoops.ui.AISettingsRoute
-import com.bennybarak.scoops.rotter_scoops.ui.LocalLanguage
 import com.bennybarak.scoops.rotter_scoops.ui.LocalNav
 import com.bennybarak.scoops.rotter_scoops.ui.Snacks
 import com.bennybarak.scoops.rotter_scoops.ui.Strings
@@ -97,7 +99,6 @@ import com.bennybarak.scoops.rotter_scoops.ui.strings
 import com.bennybarak.scoops.rotter_scoops.ui.widgets.AppBar
 import com.bennybarak.scoops.rotter_scoops.ui.widgets.AppScaffold
 import com.bennybarak.scoops.rotter_scoops.ui.widgets.BarTitle
-import com.bennybarak.scoops.rotter_scoops.ui.widgets.relTime
 import com.bennybarak.scoops.rotter_scoops.ui.widgets.selectionClick
 import com.bennybarak.scoops.rotter_scoops.ui.widgets.shareText
 import kotlinx.coroutines.CancellationException
@@ -154,6 +155,7 @@ class DigestState(
     val summarizing: Boolean get() = engine.summarizing
     val error: String? get() = engine.error
     val upToDate: Boolean get() = engine.upToDate
+    val counting: Boolean get() = engine.counting
 
     /** The kept digests the screen considers: all of them, or just the newest. */
     fun considered(): List<KeptDigest> = if (newOnly) kept.take(1) else kept
@@ -216,7 +218,6 @@ fun DigestScreen(
     val nextAuto by remember { DigestScheduler.nextAuto(ctx) }.collectAsState(null)
     val l = strings
     val p = palette
-    val lang = LocalLanguage.current
     val nav = LocalNav.current
     val view = LocalView.current
     val context = LocalContext.current
@@ -225,12 +226,19 @@ fun DigestScreen(
     val clock = remember { SimpleDateFormat("HH:mm", Locale.ROOT) }
     val inRange = s.inWindow(feed, s.minutes)
     val covered = s.covered()
+    val older = s.needsOlder(feed, s.minutes)
+    // The feed holds only the latest ~74 scoops: a longer window is counted
+    // by reading the posting times of the scoops below it, in the background.
+    val oldestId = feed.mapNotNull { it.id.toLongOrNull() }.minOrNull()
+    LaunchedEffect(s.minutes, oldestId) { if (older) s.engine.countOlder(feed, s.minutes) }
+    val below = if (older) s.engine.olderIn(s.minutes).keys - inRange.map { it.id }.toSet() else emptySet()
+    val total = inRange.size + below.size
+    // Still counting, or the walk stopped short of the window's start.
+    val more = older && (s.counting || s.engine.olderCapped)
     val since = System.currentTimeMillis() - s.minutes * 60_000L
     // Kept digests narrowed to the selected window; empty ones drop out.
     val shown = s.considered().map { it to visibleBlocks(it, since) }.filter { it.second.isNotEmpty() }
-    val fresh = inRange.count { it.id !in covered }
-    val older = s.needsOlder(feed, s.minutes)
-    val oldest = feed.mapNotNull { it.published }.minOrNull()
+    val fresh = inRange.count { it.id !in covered } + below.count { it !in covered }
 
     AppScaffold(
         bar = {
@@ -269,12 +277,6 @@ fun DigestScreen(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 28.dp + bottomInset),
         ) {
             item {
-                Text(
-                    l.digestWindow,
-                    style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W700, color = p.muted),
-                    modifier = Modifier.padding(start = 4.dp),
-                )
-                Spacer(Modifier.height(8.dp))
                 // The window: a few fixed ranges, one tap each.
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     DIGEST_STOPS.forEachIndexed { i, m ->
@@ -282,8 +284,8 @@ fun DigestScreen(
                         Box(
                             Modifier
                                 .weight(1f)
-                                .height(44.dp)
-                                .clip(RoundedCornerShape(14.dp))
+                                .height(38.dp)
+                                .clip(RoundedCornerShape(12.dp))
                                 .background(if (on) accent else p.surface)
                                 .clickable(enabled = !s.running && !on) {
                                     view.selectionClick()
@@ -302,13 +304,14 @@ fun DigestScreen(
                         }
                     }
                 }
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(8.dp))
                 val chipColors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = accent.copy(alpha = 0.18f),
                     selectedLabelColor = accent,
                     selectedLeadingIconColor = accent,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                  CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
                     // New only: just the latest run, not earlier digests.
                     FilterChip(
                         selected = s.newOnly,
@@ -348,14 +351,15 @@ fun DigestScreen(
                             }
                         }
                     }
+                  }
                 }
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(8.dp))
                 // What's waiting to be summarized, and the button that does it.
                 Box(
                     Modifier
                         .fillMaxWidth()
-                        .background(accent.copy(alpha = 0.12f), RoundedCornerShape(22.dp))
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                        .background(accent.copy(alpha = 0.12f), RoundedCornerShape(20.dp))
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
                 ) {
                     when {
                         !AIStore.isReady -> Column {
@@ -364,7 +368,7 @@ fun DigestScreen(
                             FilledTonalButton(onClick = { nav.push(AISettingsRoute()) }) { Text(l.aiSection) }
                         }
                         s.running -> Row(verticalAlignment = Alignment.CenterVertically) {
-                            CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 3.dp)
+                            CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 3.dp)
                             Spacer(Modifier.width(14.dp))
                             val pr = s.progress
                             Text(
@@ -379,15 +383,15 @@ fun DigestScreen(
                         else -> Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 Modifier
-                                    .size(40.dp)
-                                    .background(if (fresh > 0) accent else accent.copy(alpha = 0.2f), RoundedCornerShape(14.dp)),
+                                    .size(34.dp)
+                                    .background(if (fresh > 0) accent else accent.copy(alpha = 0.2f), RoundedCornerShape(12.dp)),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 when {
                                     s.error != null -> Icon(Icons.Rounded.ErrorOutline, null, tint = accent)
                                     fresh > 0 -> Text(
                                         "$fresh",
-                                        style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.W800, color = onAccent),
+                                        style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W800, color = onAccent),
                                     )
                                     else -> Icon(Icons.Rounded.Check, null, tint = accent)
                                 }
@@ -398,33 +402,37 @@ fun DigestScreen(
                                     when {
                                         s.error != null -> l.aiErrorTitle
                                         fresh > 0 -> l.digestNewSince(fresh, s.kept.firstOrNull()?.let { clock.format(Date(it.at)) })
-                                        inRange.isEmpty() && !older -> l.digestNone
+                                        total == 0 && !more -> l.digestNone
                                         else -> l.digestUpToDate
                                     },
-                                    style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = p.ink, lineHeight = 1.35.em),
+                                    style = TextStyle(fontSize = 14.5.sp, fontWeight = FontWeight.W700, color = p.ink, lineHeight = 1.3.em),
+                                    maxLines = 2,
                                 )
                                 val sub = listOfNotNull(
-                                    s.error,
-                                    if (feedLoading) l.digestUpdating
-                                    else l.scoopsCount(inRange.size) + (if (older) "+" else "") + " · " + l.durationLabel(s.minutes),
-                                    // The feed reaches back only a few hours; older scoops in
-                                    // the window are read from their pages when summarizing.
-                                    if (older && oldest != null) "${l.digestFeedReach} ${relTime(oldest, l, lang)} · ${l.digestOlderLoaded}" else null,
+                                    when {
+                                        feedLoading -> l.digestUpdating
+                                        s.counting -> l.digestCounting
+                                        else -> l.scoopsCount(total) + (if (more) "+" else "") + " · " + l.durationLabel(s.minutes)
+                                    },
                                     nextAuto?.let { l.digestNextAuto(clock.format(Date(it))) },
                                 )
                                 Text(
-                                    sub.joinToString("\n"),
-                                    style = TextStyle(fontSize = 12.5.sp, color = p.muted, lineHeight = 1.4.em),
+                                    sub.joinToString(" · "),
+                                    style = TextStyle(fontSize = 12.sp, color = p.muted, lineHeight = 1.35.em),
                                 )
+                                s.error?.let {
+                                    Text(it, style = TextStyle(fontSize = 12.sp, color = p.muted, lineHeight = 1.35.em), maxLines = 3)
+                                }
                             }
-                            Spacer(Modifier.width(10.dp))
+                            Spacer(Modifier.width(8.dp))
                             Button(
                                 // Responds at once; a stale feed is synced inside the run.
                                 onClick = {
                                     askToNotify()
                                     s.run(feedNow, catchUp, feedFresh(), l)
                                 },
-                                contentPadding = PaddingValues(horizontal = 16.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp),
+                                modifier = Modifier.height(40.dp),
                             ) {
                                 Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(18.dp))
                                 Spacer(Modifier.width(6.dp))
@@ -433,7 +441,7 @@ fun DigestScreen(
                         }
                     }
                 }
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(14.dp))
             }
             // The kept digests, newest first; each covers only scoops the
             // ones before it hadn't. Only what the selected window covers.

@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.bennybarak.scoops.rotter_scoops.data.AIStore
+import com.bennybarak.scoops.rotter_scoops.data.Message
 import com.bennybarak.scoops.rotter_scoops.data.Prefs
 import com.bennybarak.scoops.rotter_scoops.data.Scoop
 import com.bennybarak.scoops.rotter_scoops.data.SettingsController
@@ -65,6 +66,7 @@ fun needsOlder(feed: List<Scoop>, minutes: Int, now: Long): Boolean {
 class DigestEngine(val now: () -> Long = System::currentTimeMillis) {
     companion object {
         private const val KEY = "digests"
+        private const val OLDER_KEY = "digest_older"
         val shared by lazy { DigestEngine() }
     }
 
@@ -79,6 +81,21 @@ class DigestEngine(val now: () -> Long = System::currentTimeMillis) {
 
     /** Kept digests, newest first. */
     var kept by mutableStateOf<List<KeptDigest>>(emptyList()); private set
+
+    /**
+     * Posting times (id → epoch ms) of scoops below the feed, read from their
+     * pages: the screen counts them, and a digest of a long window includes them.
+     */
+    var older by mutableStateOf<Map<String, Long>>(emptyMap()); private set
+
+    /** Reading [older] for the screen's counts. */
+    var counting by mutableStateOf(false); private set
+
+    /** The last walk stopped at [MAX_OLDER] pages before reaching the window's start. */
+    var olderCapped by mutableStateOf(false); private set
+
+    /** Pages that couldn't be read (removed threads); not fetched again this session. */
+    private val gone = HashSet<String>()
 
     init {
         kept = try {
@@ -109,6 +126,13 @@ class DigestEngine(val now: () -> Long = System::currentTimeMillis) {
         } catch (_: Exception) {
             emptyList()
         }
+        older = try {
+            val o = JSONObject(Prefs.getString(OLDER_KEY) ?: "{}")
+            val oldest = now() - DIGEST_KEEP_MS
+            o.keys().asSequence().associateWith { o.optLong(it) }.filterValues { it >= oldest }
+        } catch (_: Exception) {
+            emptyMap()
+        }
     }
 
     private fun save() {
@@ -136,6 +160,65 @@ class DigestEngine(val now: () -> Long = System::currentTimeMillis) {
             )
         }
         Prefs.setString(KEY, a.toString())
+    }
+
+    /** Scoops below the feed known to be posted in the last [minutes]: id → time. */
+    fun olderIn(minutes: Int): Map<String, Long> {
+        val since = now() - minutes * 60_000L
+        return older.filterValues { it >= since }
+    }
+
+    /** Read the posting times below the feed back to [minutes] ago, for the screen's counts. */
+    suspend fun countOlder(feed: List<Scoop>, minutes: Int) {
+        if (!needsOlder(feed, minutes, now())) return
+        counting = true
+        try {
+            walkOlder(feed, now() - minutes * 60_000L)
+        } finally {
+            counting = false
+        }
+    }
+
+    private suspend fun readRoot(id: String): Message? = try {
+        (RotterService.cachedThread(id, DIGEST_KEEP_MS) ?: RotterService.fetchThread(id)).root
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        null // removed (404) or a blip
+    }
+
+    /**
+     * The RSS feed holds only the latest ~74 scoops (a few hours). Scoop
+     * thread numbers are consecutive, so walk down from the oldest one in the
+     * feed, reading each post's own time into [older], until a batch is older
+     * than [since]. Times already known — read before, or in a kept digest —
+     * aren't fetched again. [onBatch] reports each batch's size.
+     */
+    private suspend fun walkOlder(feed: List<Scoop>, since: Long, onBatch: (Int) -> Unit = {}) = coroutineScope {
+        val known = HashMap<String, Long>()
+        for (d in kept) for (src in d.sources) src.published?.let { known[src.id] = it }
+        var next = feed.mapNotNull { it.id.toLongOrNull() }.minOrNull()?.minus(1) ?: return@coroutineScope
+        var walked = 0
+        olderCapped = false
+        while (next > 0) {
+            if (walked >= MAX_OLDER) {
+                olderCapped = true
+                break
+            }
+            val batch = (0 until 20).map { next - it }.filter { it > 0 }.map { it.toString() }
+            next -= 20
+            walked += batch.size
+            val times = batch.map { id ->
+                async {
+                    older[id] ?: known[id] ?: if (id in gone) null else readRoot(id)?.timestamp.also { if (it == null) gone.add(id) }
+                }
+            }.awaitAll()
+            older = older + batch.zip(times).mapNotNull { (id, t) -> t?.let { id to it } }
+            onBatch(batch.size)
+            val read = times.filterNotNull()
+            if (read.isNotEmpty() && read.all { it < since }) break
+        }
+        Prefs.setString(OLDER_KEY, JSONObject(older.filterValues { it >= now() - DIGEST_KEEP_MS }).toString())
     }
 
     /** Scoops a digest from the last day already covers. */
@@ -230,37 +313,27 @@ class DigestEngine(val now: () -> Long = System::currentTimeMillis) {
                 DigestItem(clock.format(Date(s.published ?: 0L)), s.title, body, s.id, s.published)
             }
         }.awaitAll().toMutableList()
-        // The RSS feed holds only the latest ~74 scoops (a few hours). Scoop
-        // thread numbers are consecutive, so walk down from the oldest one in
-        // the feed, reading each post's own time, until a batch is older than
-        // the window. Already-digested scoops are skipped without fetching.
+        // Long windows reach below the feed: read those scoops' times, then
+        // the main posts of the ones inside the window not yet digested.
         if (needsOlder(feed, window, now())) {
-            var next = feed.mapNotNull { it.id.toLongOrNull() }.minOrNull()?.minus(1) ?: 0L
-            var walked = 0
-            while (next > 0 && walked < MAX_OLDER) {
-                val batch = (0 until 20).map { next - it }.filter { it > 0 }
-                next -= 20
-                walked += batch.size
+            walkOlder(feed, since) { n ->
+                done += n
                 progress = done to done + 20
-                val fresh = batch.filter { it.toString() !in done0 }
-                val roots = fresh.map { id ->
-                    async {
-                        try {
-                            RotterService.fetchThread(id.toString()).root?.let { id to it }
-                        } catch (e: CancellationException) {
-                            throw e
-                        } catch (_: Exception) {
-                            null // removed (404) or a blip: skip it
-                        }
-                    }
-                }.awaitAll().filterNotNull()
-                done += batch.size
-                val inside = roots.filter { (it.second.timestamp ?: 0L) >= since }
-                for ((id, r) in inside) {
-                    ids.add(id.toString())
-                    digest.add(DigestItem(clock.format(Date(r.timestamp!!)), r.title ?: "", r.bodyHtml, id.toString(), r.timestamp))
+            }
+            val feedIds = feed.map { it.id }.toSet()
+            val more = older.filter { (id, t) -> t >= since && id !in done0 && id !in ids && id !in feedIds }
+            progress = done to done + more.size
+            val roots = more.map { (id, t) ->
+                async {
+                    val r = gate.withPermit { readRoot(id) }
+                    done++
+                    progress = done to done + more.size
+                    r?.let { DigestItem(clock.format(Date(t)), it.title ?: "", it.bodyHtml, id, t) }
                 }
-                if (roots.isNotEmpty() && inside.isEmpty()) break
+            }.awaitAll().filterNotNull()
+            for (it in roots) {
+                ids.add(it.id)
+                digest.add(it)
             }
         }
         if (digest.isEmpty()) {

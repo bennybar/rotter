@@ -26,8 +26,8 @@ android {
         minSdk = 24
         targetSdk = 37
         // The Flutter app shipped 1.0.16+16; the code must keep growing.
-        versionCode = 40
-        versionName = "2.8.1"
+        versionCode = 41
+        versionName = "2.8.2"
     }
 
     signingConfigs {

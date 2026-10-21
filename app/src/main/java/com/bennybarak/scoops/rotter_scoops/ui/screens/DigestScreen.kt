@@ -31,13 +31,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -214,7 +211,7 @@ fun DigestScreen(
         }
     }
     var auto by remember { mutableIntStateOf(DigestScheduler.autoMinutes) }
-    var autoMenu by remember { mutableStateOf(false) }
+    var menu by remember { mutableStateOf(false) }
     val nextAuto by remember { DigestScheduler.nextAuto(ctx) }.collectAsState(null)
     val l = strings
     val p = palette
@@ -253,6 +250,44 @@ fun DigestScreen(
                             Snacks.show(l.copied, 1000)
                         }) { Icon(Icons.Rounded.ContentCopy, l.copy) }
                         IconButton(onClick = { shareText(context, text) }) { Icon(Icons.Rounded.IosShare, l.share) }
+                    }
+                    Box {
+                        IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, l.moreOptions) }
+                        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                            // New only: just the latest run, not earlier digests.
+                            DropdownMenuItem(
+                                text = { Text(l.digestNewOnly, style = TextStyle(fontSize = 15.sp)) },
+                                leadingIcon = {
+                                    if (s.newOnly) Icon(Icons.Rounded.Check, null) else Spacer(Modifier.size(24.dp))
+                                },
+                                onClick = {
+                                    menu = false
+                                    s.setNewOnlyAndSave(!s.newOnly)
+                                },
+                            )
+                            HorizontalDivider()
+                            // Automatic digests on a schedule, in the background.
+                            Text(
+                                l.digestAuto,
+                                style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W700, color = p.muted),
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            )
+                            for (m in DigestScheduler.AUTO_CHOICES) {
+                                DropdownMenuItem(
+                                    text = { Text(l.digestAutoChoice(m), style = TextStyle(fontSize = 15.sp)) },
+                                    leadingIcon = {
+                                        if (m == auto) Icon(Icons.Rounded.Check, null) else Spacer(Modifier.size(24.dp))
+                                    },
+                                    enabled = AIStore.isReady,
+                                    onClick = {
+                                        menu = false
+                                        if (m > 0) askToNotify()
+                                        auto = m
+                                        DigestScheduler.setAuto(ctx, m)
+                                    },
+                                )
+                            }
+                        }
                     }
                 },
             )
@@ -303,55 +338,6 @@ fun DigestScreen(
                             )
                         }
                     }
-                }
-                Spacer(Modifier.height(8.dp))
-                val chipColors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = accent.copy(alpha = 0.18f),
-                    selectedLabelColor = accent,
-                    selectedLeadingIconColor = accent,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                  CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
-                    // New only: just the latest run, not earlier digests.
-                    FilterChip(
-                        selected = s.newOnly,
-                        onClick = { s.setNewOnlyAndSave(!s.newOnly) },
-                        label = { Text(l.digestNewOnly) },
-                        leadingIcon = if (s.newOnly) {
-                            { Icon(Icons.Rounded.Check, null, Modifier.size(18.dp)) }
-                        } else null,
-                        shape = RoundedCornerShape(18.dp),
-                        colors = chipColors,
-                    )
-                    // Automatic digests on a schedule, in the background.
-                    Box {
-                        FilterChip(
-                            selected = auto > 0,
-                            onClick = { autoMenu = true },
-                            enabled = AIStore.isReady,
-                            label = { Text(l.digestAutoShort(auto)) },
-                            leadingIcon = { Icon(Icons.Rounded.Schedule, null, Modifier.size(18.dp)) },
-                            shape = RoundedCornerShape(18.dp),
-                            colors = chipColors,
-                        )
-                        DropdownMenu(expanded = autoMenu, onDismissRequest = { autoMenu = false }) {
-                            for (m in DigestScheduler.AUTO_CHOICES) {
-                                DropdownMenuItem(
-                                    text = { Text(l.digestAutoChoice(m), style = TextStyle(fontSize = 15.sp)) },
-                                    leadingIcon = {
-                                        if (m == auto) Icon(Icons.Rounded.Check, null) else Spacer(Modifier.size(24.dp))
-                                    },
-                                    onClick = {
-                                        autoMenu = false
-                                        if (m > 0) askToNotify()
-                                        auto = m
-                                        DigestScheduler.setAuto(ctx, m)
-                                    },
-                                )
-                            }
-                        }
-                    }
-                  }
                 }
                 Spacer(Modifier.height(8.dp))
                 // What's waiting to be summarized, and the button that does it.

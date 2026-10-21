@@ -11,7 +11,6 @@ abstract class Strings {
     abstract fun digestNotifyReady(n: Int): String
     abstract val digestAuto: String
     abstract fun digestAutoChoice(minutes: Int): String
-    abstract fun digestAutoShort(minutes: Int): String
     abstract fun digestChip(minutes: Int): String
     abstract fun digestNewSince(n: Int, time: String?): String
     abstract fun digestNextAuto(time: String): String
@@ -214,11 +213,6 @@ object StringsEn : Strings() {
         0 -> "Off"
         60 -> "Every hour"
         else -> if (minutes < 60) "Every $minutes minutes" else "Every ${minutes / 60} hours"
-    }
-    override fun digestAutoShort(minutes: Int) = when {
-        minutes == 0 -> "Auto off"
-        minutes < 60 -> "Auto · ${minutes}m"
-        else -> "Auto · ${minutes / 60}h"
     }
     override fun digestChip(minutes: Int) = when {
         minutes < 60 -> "${minutes}m"
@@ -445,12 +439,6 @@ object StringsHe : Strings() {
         60 -> "כל שעה"
         120 -> "כל שעתיים"
         else -> if (minutes < 60) "כל $minutes דקות" else "כל ${minutes / 60} שעות"
-    }
-    override fun digestAutoShort(minutes: Int) = when {
-        minutes == 0 -> "אוטומטי כבוי"
-        minutes < 60 -> "אוטו · $minutes ד׳"
-        minutes == 60 -> "אוטו · שעה"
-        else -> "אוטו · ${minutes / 60} ש׳"
     }
     override fun digestChip(minutes: Int) = when {
         minutes < 60 -> "$minutes ד׳"

@@ -135,10 +135,19 @@ class DigestTest {
         val items = (1..80).map { DigestItem("12:${it % 60}", "headline $it", "<b>" + "x".repeat(2000) + "</b>") }
         val t = ThreadSummarizer.digestTranscript(items)
         assertTrue(t.startsWith("[1] 12:1 headline 1"))
-        assertTrue(t.length <= 24_000)
+        assertTrue(t.length <= 90_000)
         assertTrue(!t.contains("<b>"))
-        // Every headline makes it in, even for a full day of scoops.
         assertTrue((1..80).all { t.contains("headline $it\n") })
+    }
+
+    // A long day: every scoop reaches the model, each with some of its text.
+    @Test fun dayDigestIncludesEveryScoop() {
+        val items = (1..400).map {
+            DigestItem("12:00", "a fairly long headline about scoop number $it", "<p>" + "x".repeat(3000) + "</p>", linked = "y".repeat(600))
+        }
+        val t = ThreadSummarizer.digestTranscript(items)
+        assertTrue(t.length <= 90_000)
+        assertTrue((1..400).all { t.contains("[$it] 12:00 a fairly long headline about scoop number $it\nxxxx") })
     }
 
     // A scoop is often a line and a link: the source links are read, ads and images aren't.

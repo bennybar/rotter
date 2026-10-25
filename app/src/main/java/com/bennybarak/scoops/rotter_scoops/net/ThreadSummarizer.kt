@@ -105,26 +105,28 @@ Format it as Markdown. Group related scoops into topics, at most six. Give each 
 Do not invent details that are not in the posts. rotter scoops are often unverified first reports — describe them as reports, and say so plainly when posts contradict each other.""".removePrefix("\n")
 
         /**
-         * The transcript budget, shared out evenly so every headline makes it
-         * in: a few scoops get up to 700 characters of post each, a day's worth
-         * get less (never under 150).
+         * The transcript budget (≈35k tokens, far inside the model's context).
+         * Every scoop's headline always goes in; the rest is shared out evenly
+         * for the posts and what they link to — up to 700 characters each for a
+         * few scoops, around 230 for a day of 300.
          */
-        private const val MAX_DIGEST_CHARS = 24000
+        private const val MAX_DIGEST_CHARS = 90_000
 
         /** Items are numbered from 1 in order; [n] is how the model refers back to them. */
         fun digestTranscript(items: List<DigestItem>): String {
             val out = StringBuilder()
-            val perItem = (MAX_DIGEST_CHARS / maxOf(1, items.size) - 60).coerceIn(150, 700)
+            val headers = items.mapIndexed { i, it -> "[${i + 1}] ${it.time} ${it.title}" }
+            val room = MAX_DIGEST_CHARS - headers.sumOf { it.length + 4 } // + the newlines around the text
+            val perItem = (room / maxOf(1, items.size)).coerceIn(0, 700)
             for ((i, it) in items.withIndex()) {
                 // A linked page gets at least half the scoop's share.
                 val full = it.bodyHtml?.let(::plain) ?: ""
                 val linked = LinkReader.unlessQuoted(it.linked, full)
                 val post = full.take(if (linked != null) perItem / 2 else perItem)
-                val link = linked?.let { l -> "Link: $l".take(perItem - post.length) }
+                // Not when only a stub of it would fit.
+                val link = linked?.takeIf { perItem - post.length > 40 }?.let { l -> "Link: $l".take(perItem - post.length) }
                 val body = listOfNotNull(post.ifEmpty { null }, link).joinToString("\n")
-                val entry = "[${i + 1}] ${it.time} ${it.title}\n$body".trim() + "\n\n"
-                if (out.length + entry.length > MAX_DIGEST_CHARS) break
-                out.append(entry)
+                out.append("${headers[i]}\n$body".trim()).append("\n\n")
             }
             return out.toString().trim()
         }

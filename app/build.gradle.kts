@@ -26,8 +26,8 @@ android {
         minSdk = 24
         targetSdk = 37
         // The Flutter app shipped 1.0.16+16; the code must keep growing.
-        versionCode = 41
-        versionName = "2.8.2"
+        versionCode = 42
+        versionName = "2.9.0"
     }
 
     signingConfigs {
@@ -60,6 +60,12 @@ android {
     }
     testOptions {
         unitTests.isReturnDefaultValues = true
+    }
+}
+
+kotlin {
+    compilerOptions {
+        freeCompilerArgs.add("-opt-in=androidx.compose.material3.ExperimentalMaterial3ExpressiveApi")
     }
 }
 

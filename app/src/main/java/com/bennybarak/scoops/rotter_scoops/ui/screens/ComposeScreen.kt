@@ -19,7 +19,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -264,7 +265,7 @@ fun ComposeScreen(s: ComposeState, bottomInset: androidx.compose.ui.unit.Dp = 0.
                             enabled = !s.busy && !s.loadingDraft,
                         ) {
                             if (s.busy) {
-                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.2.dp)
+                                LoadingIndicator(Modifier.size(24.dp), color = LocalContentColor.current)
                             } else {
                                 Text(
                                     if (s.isEdit) l.save else l.send,
@@ -278,7 +279,7 @@ fun ComposeScreen(s: ComposeState, bottomInset: androidx.compose.ui.unit.Dp = 0.
         },
     ) {
         if (s.loadingDraft) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { LoadingIndicator() }
             return@AppScaffold
         }
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {

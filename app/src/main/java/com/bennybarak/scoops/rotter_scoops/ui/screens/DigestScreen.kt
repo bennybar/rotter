@@ -24,8 +24,17 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.IosShare
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.LinearWavyProgressIndicator
+import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.ToggleButtonDefaults
+import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.SplitButtonLayout
+import androidx.compose.material3.SplitButtonDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,7 +44,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -199,6 +207,7 @@ fun DigestScreen(
     // back to the app on it — so its window includes the latest scoops.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { ui.launch { catchUp() } }
     var refreshing by remember { mutableStateOf(false) }
+    val pull = rememberPullToRefreshState()
     // Android 13+: the digest job's notifications need permission; ask the
     // first time a digest is started or the schedule is turned on.
     val notifyPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -305,36 +314,44 @@ fun DigestScreen(
                     }
                 }
             },
+            state = pull,
             modifier = Modifier.fillMaxSize(),
+            indicator = {
+                PullToRefreshDefaults.LoadingIndicator(state = pull, isRefreshing = refreshing, modifier = Modifier.align(Alignment.TopCenter))
+            },
         ) {
         LazyColumn(
             Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 28.dp + bottomInset),
         ) {
             item {
-                // The window: a few fixed ranges, one tap each.
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                // The window: a few fixed ranges, one tap each, as a connected
+                // group; the chosen one changes shape as well as colour.
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)) {
                     DIGEST_STOPS.forEachIndexed { i, m ->
                         val on = i == s.stop
-                        Box(
-                            Modifier
-                                .weight(1f)
-                                .height(38.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (on) accent else p.surface)
-                                .clickable(enabled = !s.running && !on) {
+                        ToggleButton(
+                            checked = on,
+                            // Ignored while a digest runs, without greying the group out.
+                            onCheckedChange = {
+                                if (!on && !s.running) {
                                     view.selectionClick()
                                     s.stop = i
-                                },
-                            contentAlignment = Alignment.Center,
+                                }
+                            },
+                            shapes = when (i) {
+                                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                DIGEST_STOPS.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                            },
+                            colors = ToggleButtonDefaults.colors(containerColor = p.surface, contentColor = p.ink),
+                            contentPadding = PaddingValues(horizontal = 2.dp),
+                            modifier = Modifier.weight(1f).height(40.dp),
                         ) {
                             Text(
                                 l.digestChip(m),
-                                style = TextStyle(
-                                    fontSize = 14.sp,
-                                    fontWeight = if (on) FontWeight.W800 else FontWeight.W600,
-                                    color = if (on) onAccent else p.ink,
-                                ),
+                                maxLines = 1,
+                                style = TextStyle(fontSize = 14.sp, fontWeight = if (on) FontWeight.W800 else FontWeight.W600),
                             )
                         }
                     }
@@ -353,18 +370,29 @@ fun DigestScreen(
                             Spacer(Modifier.height(10.dp))
                             FilledTonalButton(onClick = { nav.push(AISettingsRoute()) }) { Text(l.aiSection) }
                         }
-                        s.running -> Row(verticalAlignment = Alignment.CenterVertically) {
-                            CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 3.dp)
-                            Spacer(Modifier.width(14.dp))
+                        s.running -> Column {
                             val pr = s.progress
-                            Text(
-                                when {
-                                    s.syncing -> l.digestUpdating
-                                    s.summarizing || pr == null -> l.aiSummarizing
-                                    else -> l.digestLoading(pr.first, pr.second)
-                                },
-                                style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = p.ink),
-                            )
+                            val loading = pr != null && pr.second > 0 && !s.syncing && !s.summarizing
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                LoadingIndicator(Modifier.size(34.dp))
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    when {
+                                        s.syncing -> l.digestUpdating
+                                        !loading -> l.aiSummarizing
+                                        else -> l.digestLoading(pr!!.first, pr.second)
+                                    },
+                                    style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = p.ink),
+                                )
+                            }
+                            // Reading the posts (and their links) has a known length.
+                            if (loading) {
+                                Spacer(Modifier.height(8.dp))
+                                LinearWavyProgressIndicator(
+                                    progress = { pr!!.first.toFloat() / pr.second },
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
                         }
                         else -> Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
@@ -411,18 +439,50 @@ fun DigestScreen(
                                 }
                             }
                             Spacer(Modifier.width(8.dp))
-                            Button(
-                                // Responds at once; a stale feed is synced inside the run.
-                                onClick = {
-                                    askToNotify()
-                                    s.run(feedNow, catchUp, feedFresh(), l)
-                                },
-                                contentPadding = PaddingValues(horizontal = 14.dp),
-                                modifier = Modifier.height(40.dp),
-                            ) {
-                                Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(18.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text(l.digestButton, style = TextStyle(fontWeight = FontWeight.W700))
+                            // Summarize │ ▾ — the menu has "summarize all again".
+                            var runMenu by remember { mutableStateOf(false) }
+                            Box {
+                                SplitButtonLayout(
+                                    leadingButton = {
+                                        SplitButtonDefaults.LeadingButton(
+                                            // Responds at once; a stale feed is synced inside the run.
+                                            onClick = {
+                                                askToNotify()
+                                                s.run(feedNow, catchUp, feedFresh(), l)
+                                            },
+                                            contentPadding = PaddingValues(start = 12.dp, end = 10.dp),
+                                            modifier = Modifier.height(40.dp),
+                                        ) {
+                                            Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(18.dp))
+                                            Spacer(Modifier.width(6.dp))
+                                            Text(l.digestButton, style = TextStyle(fontWeight = FontWeight.W700))
+                                        }
+                                    },
+                                    trailingButton = {
+                                        SplitButtonDefaults.TrailingButton(
+                                            checked = runMenu,
+                                            onCheckedChange = { runMenu = it },
+                                            modifier = Modifier.height(40.dp),
+                                        ) {
+                                            Icon(
+                                                if (runMenu) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                                                l.moreOptions,
+                                                Modifier.size(20.dp),
+                                            )
+                                        }
+                                    },
+                                )
+                                DropdownMenu(expanded = runMenu, onDismissRequest = { runMenu = false }) {
+                                    DropdownMenuItem(
+                                        text = { Text(l.digestStartOver, style = TextStyle(fontSize = 15.sp)) },
+                                        onClick = {
+                                            runMenu = false
+                                            askToNotify()
+                                            s.startOver()
+                                            s.run(feedNow, catchUp, feedFresh(), l)
+                                        },
+                                    )
+                                }
                             }
                         }
                     }
@@ -484,12 +544,8 @@ fun DigestScreen(
                     }
                 }
             }
-            if (shown.isNotEmpty() && !s.running) {
-                item {
-                    AiDisclaimer()
-                    Spacer(Modifier.height(8.dp))
-                    TextButton(onClick = { s.startOver() }) { Text(l.digestStartOver) }
-                }
+            if (shown.isNotEmpty()) {
+                item { AiDisclaimer() }
             }
         }
         }

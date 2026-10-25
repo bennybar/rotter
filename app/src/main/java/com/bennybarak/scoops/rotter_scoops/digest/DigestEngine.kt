@@ -10,6 +10,7 @@ import com.bennybarak.scoops.rotter_scoops.data.Scoop
 import com.bennybarak.scoops.rotter_scoops.data.SettingsController
 import com.bennybarak.scoops.rotter_scoops.net.DigestItem
 import com.bennybarak.scoops.rotter_scoops.net.DigestSource
+import com.bennybarak.scoops.rotter_scoops.net.LinkReader
 import com.bennybarak.scoops.rotter_scoops.net.RotterService
 import com.bennybarak.scoops.rotter_scoops.net.SummaryException
 import com.bennybarak.scoops.rotter_scoops.net.ThreadSummarizer
@@ -308,9 +309,10 @@ class DigestEngine(val now: () -> Long = System::currentTimeMillis) {
                         null
                     }
                 }
+                val linked = LinkReader.read(body)
                 done++
                 progress = done to items.size
-                DigestItem(clock.format(Date(s.published ?: 0L)), s.title, body, s.id, s.published)
+                DigestItem(clock.format(Date(s.published ?: 0L)), s.title, body, s.id, s.published, linked)
             }
         }.awaitAll().toMutableList()
         // Long windows reach below the feed: read those scoops' times, then
@@ -328,7 +330,7 @@ class DigestEngine(val now: () -> Long = System::currentTimeMillis) {
                     val r = gate.withPermit { readRoot(id) }
                     done++
                     progress = done to done + more.size
-                    r?.let { DigestItem(clock.format(Date(t)), it.title ?: "", it.bodyHtml, id, t) }
+                    r?.let { DigestItem(clock.format(Date(t)), it.title ?: "", it.bodyHtml, id, t, LinkReader.read(it.bodyHtml)) }
                 }
             }.awaitAll().filterNotNull()
             for (it in roots) {

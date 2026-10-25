@@ -566,7 +566,7 @@ fun ScoopsScreen(c: ScoopsController, bottomInset: androidx.compose.ui.unit.Dp) 
                 state = pullState,
                 modifier = Modifier.fillMaxSize(),
                 indicator = {
-                    PullToRefreshDefaults.Indicator(
+                    PullToRefreshDefaults.LoadingIndicator(
                         state = pullState,
                         isRefreshing = refreshing,
                         modifier = Modifier.align(Alignment.TopCenter).padding(top = HeaderHeight),

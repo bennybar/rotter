@@ -46,7 +46,7 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.South
 import androidx.compose.material.icons.rounded.UnfoldLess
 import androidx.compose.material.icons.rounded.UnfoldMore
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -593,7 +593,7 @@ fun ThreadScreen(s: ThreadState) {
                 state = pull,
                 modifier = Modifier.fillMaxSize(),
                 indicator = {
-                    PullToRefreshDefaults.Indicator(
+                    PullToRefreshDefaults.LoadingIndicator(
                         state = pull,
                         isRefreshing = refreshing,
                         modifier = Modifier.align(Alignment.TopCenter).padding(top = BarHeight),
@@ -717,7 +717,7 @@ private fun ThreadSearchBar(s: ThreadState) {
         actions = {
             if (s.searchPending) {
                 Box(Modifier.padding(horizontal = 8.dp)) {
-                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                    LoadingIndicator(Modifier.size(22.dp))
                 }
             } else if (hasQuery) {
                 Text(
@@ -914,7 +914,7 @@ private fun ThreadBody(s: ThreadState) {
     val p = palette
     val t = s.thread
     if (s.loading && t == null) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { LoadingIndicator() }
         return
     }
     val err = s.error

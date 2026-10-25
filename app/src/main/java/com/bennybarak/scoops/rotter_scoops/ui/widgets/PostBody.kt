@@ -33,7 +33,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -331,7 +331,7 @@ private fun TelegramCard(channelPost: String) {
                     .height(72.dp)
                     .background(p.field, RoundedCornerShape(14.dp)),
                 contentAlignment = Alignment.Center,
-            ) { CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) }
+            ) { LoadingIndicator(Modifier.size(28.dp)) }
             return@Box
         }
         val tg = post

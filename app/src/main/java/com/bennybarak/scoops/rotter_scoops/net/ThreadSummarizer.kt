@@ -20,6 +20,7 @@ class DigestItem(
     val bodyHtml: String?,
     val id: String = "", // the scoop's thread id
     val published: Long? = null,
+    val linked: String? = null, // the text of what the post links to (LinkReader)
 )
 
 /** A scoop a digest drew on: its reference number in the transcript ([n]) and thread. */
@@ -83,18 +84,23 @@ Bullet points for anything presented as new information, each saying whether the
 
 Use `-` for bullets and `**bold**` for the few phrases that matter most. Do not use tables, code blocks or headings other than the three above. Keep the whole summary under 250 words.
 
+The post may be followed by `LINKED:` and the text of the Telegram post, X post or article it links to; the post itself is often just a headline and a link, so treat that text as part of the post.
+
 Do not invent details that are not in the text. rotter posts are often unverified rumor — describe claims as claims, and say so plainly when the thread itself disputes them.""".removePrefix("\n")
 
         private val ws = Regex("""\s+""")
+        private val url = Regex("""https?://\S+""")
+
+        /** A post's text; bare URLs dropped — what they point at comes from LinkReader. */
         private fun plain(html: String) =
-            Jsoup.parseBodyFragment(html).body().wholeText().replace(ws, " ").trim()
+            Jsoup.parseBodyFragment(html).body().wholeText().replace(url, " ").replace(ws, " ").trim()
 
         private fun digestPrompt(language: String, window: String) = """
 You summarize the latest scoops (breaking-news posts) from rotter.net, an Israeli news forum. You will be given the main posts published in the last $window, newest first, each with its posting time, headline and text. Comments are not included.
 
 Write the summary in $language.
 
-Format it as Markdown. Group related scoops into topics, at most six. Give each topic a `## ` heading in $language, then `-` bullets, one per distinct development, newest first, starting with its posting time (HH:MM). Use `**bold**` for the key fact of each bullet. Merge scoops that report the same thing. Each scoop in the input starts with a reference number in square brackets, like [3]. End every bullet with the reference numbers of the scoops it is based on, in square brackets, e.g. [3] or [3, 7], and use them nowhere else. Do not use tables, code blocks or other headings. Keep the whole digest under 400 words, not counting the references.
+Format it as Markdown. Group related scoops into topics, at most six. Give each topic a `## ` heading in $language, then `-` bullets, one per distinct development, newest first, starting with its posting time (HH:MM). Use `**bold**` for the key fact of each bullet. Merge scoops that report the same thing. Each scoop in the input starts with a reference number in square brackets, like [3]. A scoop may end with `Link:` and the text of the Telegram post, X post or article it links to; the post itself is often just a headline and a link, so use that text as part of the scoop. End every bullet with the reference numbers of the scoops it is based on, in square brackets, e.g. [3] or [3, 7], and use them nowhere else. Do not use tables, code blocks or other headings. Keep the whole digest under 400 words, not counting the references.
 
 Do not invent details that are not in the posts. rotter scoops are often unverified first reports — describe them as reports, and say so plainly when posts contradict each other.""".removePrefix("\n")
 
@@ -110,7 +116,12 @@ Do not invent details that are not in the posts. rotter scoops are often unverif
             val out = StringBuilder()
             val perItem = (MAX_DIGEST_CHARS / maxOf(1, items.size) - 60).coerceIn(150, 700)
             for ((i, it) in items.withIndex()) {
-                val body = it.bodyHtml?.let(::plain)?.take(perItem) ?: ""
+                // A linked page gets at least half the scoop's share.
+                val full = it.bodyHtml?.let(::plain) ?: ""
+                val linked = LinkReader.unlessQuoted(it.linked, full)
+                val post = full.take(if (linked != null) perItem / 2 else perItem)
+                val link = linked?.let { l -> "Link: $l".take(perItem - post.length) }
+                val body = listOfNotNull(post.ifEmpty { null }, link).joinToString("\n")
                 val entry = "[${i + 1}] ${it.time} ${it.title}\n$body".trim() + "\n\n"
                 if (out.length + entry.length > MAX_DIGEST_CHARS) break
                 out.append(entry)
@@ -118,12 +129,14 @@ Do not invent details that are not in the posts. rotter scoops are often unverif
             return out.toString().trim()
         }
 
-        fun transcript(thread: Thread, title: String): String {
+        fun transcript(thread: Thread, title: String, linked: String? = null): String {
             val lines = arrayListOf("POST: $title")
+            val post = thread.root?.bodyHtml?.let(::plain) ?: ""
             thread.root?.let { root ->
                 lines.add("BY: ${root.author}")
-                root.bodyHtml?.let { lines.add(plain(it)) }
+                if (root.bodyHtml != null) lines.add(post)
             }
+            LinkReader.unlessQuoted(linked, post)?.let { lines.add("LINKED: $it") }
             lines.add("\nCOMMENTS:")
             var budget = MAX_TRANSCRIPT_CHARS
             for (c in thread.comments) {
@@ -137,7 +150,7 @@ Do not invent details that are not in the posts. rotter scoops are often unverif
     }
 
     suspend fun summarize(thread: Thread, title: String): String =
-        complete(systemPrompt(language), transcript(thread, title))
+        complete(systemPrompt(language), transcript(thread, title, LinkReader.read(thread.root?.bodyHtml)))
 
     /** A digest of the scoops posted in the last [window] (main posts only). */
     suspend fun summarizeDigest(items: List<DigestItem>, window: String): String =

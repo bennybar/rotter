@@ -5,6 +5,7 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -190,7 +191,8 @@ fun ScoopsTheme(content: @Composable () -> Unit) {
     val lang = s.locale ?: Locale.getDefault().language.let { if (it == "iw" || it == "he") "he" else "en" }
     val str = if (lang == "he") StringsHe else StringsEn
     val direction = if (lang == "he") LayoutDirection.Rtl else LayoutDirection.Ltr
-    MaterialTheme(colorScheme = scheme, typography = remember(p) { typography(p) }) {
+    // Expressive motion: springier, app-wide.
+    MaterialTheme(colorScheme = scheme, typography = remember(p) { typography(p) }, motionScheme = MotionScheme.expressive()) {
         CompositionLocalProvider(
             LocalPalette provides p,
             LocalStrings provides str,

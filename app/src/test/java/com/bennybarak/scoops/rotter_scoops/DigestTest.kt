@@ -140,4 +140,33 @@ class DigestTest {
         // Every headline makes it in, even for a full day of scoops.
         assertTrue((1..80).all { t.contains("headline $it\n") })
     }
+
+    // A scoop is often a line and a link: the source links are read, ads and images aren't.
+    @Test fun linksWorthReading() {
+        val body = """<a href="https://t.me/news/1">t</a> <img src="https://i.ibb.co/x.jpg">
+            <a href="https://cdn.taboola.com/p.js">ad</a> <a href="https://www.ynet.co.il/a/1">y</a>
+            <a href="https://x.com/u/status/2">x</a> <a href="https://rotter.net/forum/scoops1/1.shtml">r</a>"""
+        assertEquals(
+            listOf("https://t.me/news/1", "https://www.ynet.co.il/a/1"),
+            com.bennybarak.scoops.rotter_scoops.net.LinkReader.links(body),
+        )
+    }
+
+    // The linked text reaches the model even when the post itself is long; bare URLs don't.
+    @Test fun transcriptCarriesLinkedText() {
+        val item = DigestItem("12:00", "headline", "<p>" + "x".repeat(2000) + " https://t.me/news/1</p>", linked = "what the link says")
+        val t = ThreadSummarizer.digestTranscript(listOf(item))
+        assertTrue(t.contains("Link: what the link says"))
+        assertTrue(!t.contains("https://"))
+    }
+
+    // A Telegram post linked twice (embed + "view in Telegram") is read once;
+    // link text the post already quotes isn't sent again.
+    @Test fun linkedTextNotRepeated() {
+        val body = """<iframe src="https://t.me/news/5?embed=1"></iframe> <a href="https://t.me/news/5">view</a>"""
+        assertEquals(listOf("https://t.me/news/5"), com.bennybarak.scoops.rotter_scoops.net.LinkReader.links(body))
+        val quoted = "the full text of the telegram post, pasted into the scoop by its author"
+        val t = ThreadSummarizer.digestTranscript(listOf(DigestItem("12:00", "h", "<p>$quoted</p>", linked = quoted)))
+        assertTrue(!t.contains("Link:"))
+    }
 }

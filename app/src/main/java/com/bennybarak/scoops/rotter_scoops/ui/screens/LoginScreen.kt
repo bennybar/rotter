@@ -23,7 +23,7 @@ import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -132,7 +132,7 @@ fun LoginScreen(s: LoginState) {
     val accent = MaterialTheme.colorScheme.primary
     AppScaffold(bar = { AppBar(leading = { BackButton() }, title = { BarTitle(l.signIn) }) }) {
         if (s.autoTrying) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { LoadingIndicator() }
             return@AppScaffold
         }
         LazyColumn(
@@ -182,7 +182,7 @@ fun LoginScreen(s: LoginState) {
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                 ) {
                     if (s.busy) {
-                        CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.4.dp, color = Color.White)
+                        LoadingIndicator(Modifier.size(28.dp), color = Color.White)
                     } else {
                         Text(l.signIn, style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.W700))
                     }
